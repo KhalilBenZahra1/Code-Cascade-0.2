@@ -159,10 +159,10 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
         ),
         const SizedBox(width: 12),
         _buildStatCard(
-          icon: Icons.star_outline,
-          iconColor: Colors.amber,
-          value: '4.8',
-          label: 'Note',
+          icon: Icons.how_to_reg_outlined,
+          iconColor: Colors.orange,
+          value: '156',
+          label: 'Inscriptions',
         ),
       ],
     );

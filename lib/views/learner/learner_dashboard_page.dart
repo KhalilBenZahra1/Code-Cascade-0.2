@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../../providers/profile_provider.dart';
-import '../../services/auth_service.dart';
 
 class LearnerDashboardPage extends StatefulWidget {
   const LearnerDashboardPage({super.key});
@@ -11,8 +11,6 @@ class LearnerDashboardPage extends StatefulWidget {
 }
 
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
-  final AuthService _authService = AuthService();
-
   @override
   void initState() {
     super.initState();
@@ -27,25 +25,33 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
       backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
               const SizedBox(height: 24),
-              _buildWelcomeCard(),
-              const SizedBox(height: 20),
-              _buildStatsSection(),
+              _buildStatsCards(),
               const SizedBox(height: 24),
-              _buildContinueLearningSection(),
+              _buildActivityChart(),
               const SizedBox(height: 24),
-              _buildRecommendedCourses(),
-              const SizedBox(height: 24),
-              _buildQuickActions(),
+              _buildPopularCourses(),
             ],
           ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Explorer les cours')));
+        },
+        backgroundColor: const Color(0xFF84CC16),
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.search),
+        label: const Text('Explorer'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -55,44 +61,79 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Tableau de bord apprenant',
+                const Text(
+                  'Tableau de bord',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Continuez votre progression',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  'Bienvenue, ${provider.isLoading ? '...' : provider.displayName.split(' ').first}',
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                 ),
               ],
             ),
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/profile'),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6),
-                  borderRadius: BorderRadius.circular(12),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Stack(
+                    children: [
+                      const Center(
+                        child: Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Center(
-                  child: Text(
-                    provider.isLoading ? '?' : provider.getInitials(),
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/profile'),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF84CC16),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        provider.isLoading ? '?' : provider.getInitials(),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         );
@@ -100,98 +141,64 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     );
   }
 
-  Widget _buildWelcomeCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Bon retour',
-            style: TextStyle(
-              color: Color(0xFF84CC16),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Vous avez 3 cours en cours et 2 quiz à terminer.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              height: 1.4,
-            ),
-          ),
-          SizedBox(height: 10),
-          Text(
-            'Continuez votre apprentissage et atteignez vos objectifs.',
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsSection() {
+  Widget _buildStatsCards() {
     return Row(
       children: [
         _buildStatCard(
-          title: 'Cours suivis',
-          value: '08',
           icon: Icons.menu_book_outlined,
+          iconColor: Color(0xFF84CC16),
+          value: '5',
+          label: 'Cours suivis',
+        ),
+
+        const SizedBox(width: 12),
+        _buildStatCard(
+          icon: Icons.check_circle_outline,
+          iconColor: Colors.blue,
+          value: '2',
+          label: 'Terminés',
         ),
         const SizedBox(width: 12),
         _buildStatCard(
-          title: 'Progression',
-          value: '72%',
-          icon: Icons.show_chart,
-        ),
-        const SizedBox(width: 12),
-        _buildStatCard(
-          title: 'Quiz réussis',
-          value: '14',
-          icon: Icons.quiz_outlined,
+          icon: Icons.trending_up,
+          iconColor: Colors.orange,
+          value: '68%',
+          label: 'Progression',
         ),
       ],
     );
   }
 
   Widget _buildStatCard({
-    required String title,
-    required String value,
     required IconData icon,
+    required Color iconColor,
+    required String value,
+    required String label,
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: const Color(0xFF84CC16), size: 24),
-            const SizedBox(height: 10),
+            Icon(icon, color: iconColor, size: 24),
+            const SizedBox(height: 12),
             Text(
               value,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
+              label,
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
             ),
           ],
         ),
@@ -199,45 +206,9 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     );
   }
 
-  Widget _buildContinueLearningSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Continuer l\'apprentissage',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 14),
-        _buildCourseProgressCard(
-          courseTitle: 'Flutter pour débutants',
-          progress: 0.65,
-          percentText: '65%',
-          remainingText: '3 modules restants',
-        ),
-        const SizedBox(height: 12),
-        _buildCourseProgressCard(
-          courseTitle: 'React Fundamentals',
-          progress: 0.40,
-          percentText: '40%',
-          remainingText: '6 modules restants',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCourseProgressCard({
-    required String courseTitle,
-    required double progress,
-    required String percentText,
-    required String remainingText,
-  }) {
+  Widget _buildActivityChart() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
@@ -245,36 +216,153 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            courseTitle,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Activité 7 jours',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Progression des 7 jours',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF84CC16).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.trending_up, color: Color(0xFF84CC16), size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      '+12%',
+                      style: TextStyle(
+                        color: Color(0xFF84CC16),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            remainingText,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.black26,
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF84CC16)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            percentText,
-            style: const TextStyle(
-              color: Color(0xFF84CC16),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 150,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 20,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(color: Colors.grey.shade800, strokeWidth: 1);
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 20,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          '${value.toInt()}',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 10,
+                          ),
+                        );
+                      },
+                      reservedSize: 30,
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        const days = [
+                          'Lun',
+                          'Mar',
+                          'Mer',
+                          'Jeu',
+                          'Ven',
+                          'Sam',
+                          'Dim',
+                        ];
+                        if (value.toInt() >= 0 && value.toInt() < days.length) {
+                          return Text(
+                            days[value.toInt()],
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 10,
+                            ),
+                          );
+                        }
+                        return const Text('');
+                      },
+                      reservedSize: 30,
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: 100,
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: const [
+                      FlSpot(0, 40),
+                      FlSpot(1, 50),
+                      FlSpot(2, 35),
+                      FlSpot(3, 65),
+                      FlSpot(4, 55),
+                      FlSpot(5, 75),
+                      FlSpot(6, 45),
+                    ],
+                    isCurved: true,
+                    color: const Color(0xFF84CC16),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: const Color(0xFF84CC16),
+                          strokeWidth: 2,
+                          strokeColor: Colors.white,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: const Color(0xFF84CC16).withValues(alpha: 0.1),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -282,107 +370,97 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     );
   }
 
-  Widget _buildRecommendedCourses() {
+  Widget _buildPopularCourses() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Cours recommandés',
+          'Mes cours',
           style: TextStyle(
             color: Colors.white,
             fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 14),
-        _buildRecommendedItem(
-          title: 'Node.js API Development',
-          subtitle: 'Backend • 12 leçons',
+        const SizedBox(height: 16),
+        _buildCourseItem(
+          title: 'React avancé',
+          subtitle: 'Leçon 6/8',
+          progress: 0.78,
+          percentage: '78',
         ),
         const SizedBox(height: 12),
-        _buildRecommendedItem(
-          title: 'UI/UX Essentials',
-          subtitle: 'Design • 8 leçons',
+        _buildCourseItem(
+          title: 'Node.js Backend',
+          subtitle: 'Leçon 4/6',
+          progress: 0.65,
+          percentage: '65',
+        ),
+        const SizedBox(height: 12),
+        _buildCourseItem(
+          title: 'TypeScript',
+          subtitle: 'Leçon 9/10',
+          progress: 0.92,
+          percentage: '92',
         ),
       ],
     );
   }
 
-  Widget _buildRecommendedItem({
+  Widget _buildCourseItem({
     required String title,
     required String subtitle,
+    required double progress,
+    required String percentage,
   }) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: const Color(0xFF84CC16).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.play_lesson_outlined,
-              color: Color(0xFF84CC16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '$percentage %',
+                style: const TextStyle(
+                  color: Color(0xFF84CC16),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey.shade800,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFF84CC16),
+              ),
+              minHeight: 6,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () async {
-          await _authService.signOut();
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/login');
-          }
-        },
-        icon: const Icon(Icons.logout, color: Colors.white),
-        label: const Text(
-          'Se déconnecter',
-          style: TextStyle(color: Colors.white),
-        ),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E293B),
-          side: BorderSide.none,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
       ),
     );
   }

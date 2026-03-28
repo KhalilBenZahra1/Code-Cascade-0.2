@@ -89,7 +89,6 @@ class _LoginPageState extends State<LoginPage> {
 
     await showDialog(
       context: context,
-      barrierDismissible: !isSending,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -99,38 +98,23 @@ class _LoginPageState extends State<LoginPage> {
                 'Mot de passe oublié',
                 style: TextStyle(color: Colors.white),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Entrez votre adresse email pour recevoir un lien de réinitialisation.',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+              content: TextField(
+                controller: emailController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Votre email',
+                  hintStyle: TextStyle(color: Colors.grey.shade500),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: emailController,
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'votre@email.com',
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
-                      prefixIcon: const Icon(
-                        Icons.email_outlined,
-                        color: Colors.grey,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSending ? null : () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context),
                   child: const Text(
                     'Annuler',
                     style: TextStyle(color: Colors.white70),
@@ -143,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                           final email = emailController.text.trim();
 
                           if (email.isEmpty) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
+                            ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Entrez votre email'),
                                 backgroundColor: Colors.red,
@@ -153,27 +137,22 @@ class _LoginPageState extends State<LoginPage> {
                           }
 
                           try {
-                            setDialogState(() {
-                              isSending = true;
-                            });
+                            setDialogState(() => isSending = true);
 
                             await _authService.sendPasswordResetEmail(email);
 
-                            if (!mounted) return;
                             Navigator.pop(context);
 
-                            ScaffoldMessenger.of(this.context).showSnackBar(
+                            ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'Un email de réinitialisation a été envoyé.',
+                                  'Email de réinitialisation envoyé',
                                 ),
                                 backgroundColor: Colors.green,
                               ),
                             );
                           } catch (e) {
-                            if (!mounted) return;
-
-                            ScaffoldMessenger.of(this.context).showSnackBar(
+                            ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
                                   e.toString().replaceFirst('Exception: ', ''),
@@ -182,11 +161,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             );
                           } finally {
-                            if (mounted) {
-                              setDialogState(() {
-                                isSending = false;
-                              });
-                            }
+                            setDialogState(() => isSending = false);
                           }
                         },
                   style: ElevatedButton.styleFrom(
