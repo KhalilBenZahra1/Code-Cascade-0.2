@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "412517173233",
+    "project_id": "codecascade-52984",
+    "storage_bucket": "codecascade-52984.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:412517173233:android:4e5e897c06e8cd31cbe650",
+        "android_client_info": {
+          "package_name": "com.example.codecascade"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "412517173233-7q3ujoj6tqnmbi05q39mpdlp5qlqhr8u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.codecascade",
+            "certificate_hash": "51a74ef694578fdec63e518948c3adbcbbdda254"
+          }
+        },
+        {
+          "client_id": "412517173233-1nr6erfppq2e90gttm9v1u942ai0qccu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6cEDeTFgLMYVkFRZP8VCIiLu4nj2UQVA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "412517173233-1nr6erfppq2e90gttm9v1u942ai0qccu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "412517173233-f7rkn7tupjmkfrndre89rru3b4s2agep.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.codecascade"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
