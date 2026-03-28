@@ -62,11 +62,9 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _userService.updateProfile(
-        uid: _user!.uid,
-        fullName: fullName,
-        email: email,
-      );
+      if (fullName != null && fullName != _user!.fullName) {
+        await _userService.updateProfile(uid: _user!.uid, fullName: fullName);
+      }
 
       if (email != null && email != _user!.email) {
         await _authService.updateEmail(email);
@@ -135,7 +133,18 @@ class ProfileProvider extends ChangeNotifier {
         return;
       }
 
-      _user = appUser;
+      // Synchroniser Firestore avec Firebase Auth si l'email a changé
+      if ((firebaseUser.email ?? '').trim().isNotEmpty &&
+          appUser.email.trim() != (firebaseUser.email ?? '').trim()) {
+        await _userService.updateProfile(
+          uid: firebaseUser.uid,
+          email: firebaseUser.email!.trim(),
+        );
+
+        _user = appUser.copyWith(email: firebaseUser.email!.trim());
+      } else {
+        _user = appUser;
+      }
     } catch (e) {
       _user = null;
       _error = e.toString();

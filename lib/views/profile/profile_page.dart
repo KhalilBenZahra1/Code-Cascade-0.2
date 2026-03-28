@@ -96,12 +96,25 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (!mounted) return;
                             Navigator.pop(context);
 
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Modification enregistrée'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                            // 👉 Cas email
+                            if (title.toLowerCase().contains('email')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Un email de confirmation a été envoyé. Le changement sera effectif après validation.',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            } else {
+                              // 👉 Cas normal (nom, etc.)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Modification enregistrée'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
                           } catch (e) {
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
