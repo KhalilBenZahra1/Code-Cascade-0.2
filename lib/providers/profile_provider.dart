@@ -8,6 +8,10 @@ import '../services/auth_service.dart';
 class ProfileProvider extends ChangeNotifier {
   final UserService _userService = UserService();
   final AuthService _authService = AuthService();
+  String get email => _user?.email ?? '';
+  String get role => _user?.role ?? '';
+  List<String> get expertises => _user?.expertises ?? [];
+  bool get isTrainer => _user?.isTrainer ?? false;
 
   AppUser? _user;
   bool _isLoading = true;
@@ -111,8 +115,6 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> _loadUserInternal() async {
-    if (_isLoading && _user != null) return;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -122,8 +124,6 @@ class ProfileProvider extends ChangeNotifier {
 
       if (firebaseUser == null) {
         _user = null;
-        _isLoading = false;
-        notifyListeners();
         return;
       }
 
@@ -132,8 +132,6 @@ class ProfileProvider extends ChangeNotifier {
       if (appUser == null) {
         _user = null;
         _error = 'Profil utilisateur introuvable';
-        _isLoading = false;
-        notifyListeners();
         return;
       }
 
@@ -141,6 +139,60 @@ class ProfileProvider extends ChangeNotifier {
     } catch (e) {
       _user = null;
       _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateDisplayName(String newValue) async {
+    await updateProfile(fullName: newValue);
+  }
+
+  Future<void> updateEmailOnly(String newValue) async {
+    await updateProfile(email: newValue);
+  }
+
+  Future<void> updateExpertises(List<String> newExpertises) async {
+    if (_user == null) {
+      throw Exception('Aucun utilisateur connecté');
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _userService.updateProfile(
+        uid: _user!.uid,
+        expertises: newExpertises,
+      );
+
+      await _loadUserInternal();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _authService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    } catch (e) {
+      _error = e.toString();
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
