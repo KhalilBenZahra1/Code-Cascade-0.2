@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../services/course_service.dart';
+import 'course_builder_page.dart';
+import 'courses_list_page.dart';
 
 class TrainerDashboardPage extends StatefulWidget {
   const TrainerDashboardPage({super.key});
@@ -42,8 +45,9 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Créer un nouveau cours')),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CourseBuilderPage()),
           );
         },
         backgroundColor: const Color(0xFF84CC16),
@@ -151,12 +155,30 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
           label: 'Apprenants',
         ),
         const SizedBox(width: 12),
-        _buildStatCard(
-          icon: Icons.menu_book_outlined,
-          iconColor: const Color(0xFF84CC16),
-          value: '12',
-          label: 'Cours',
+        Expanded(
+          child: StreamBuilder<int>(
+            stream: CourseService().getTrainerCoursesCount(),
+            builder: (context, snapshot) {
+              final int courseCount = snapshot.data ?? 0;
+
+              return _buildStatCard(
+                icon: Icons.menu_book_outlined,
+                iconColor: const Color(0xFF84CC16),
+                value: courseCount.toString(),
+                label: 'Cours',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CoursesListPage(),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
+
         const SizedBox(width: 12),
         _buildStatCard(
           icon: Icons.how_to_reg_outlined,
@@ -173,33 +195,39 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
     required Color iconColor,
     required String value,
     required String label,
+    VoidCallback? onTap,
   }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: iconColor, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor, size: 24),
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );
