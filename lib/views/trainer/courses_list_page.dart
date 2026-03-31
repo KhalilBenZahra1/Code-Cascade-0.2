@@ -138,6 +138,66 @@ class CoursesListPage extends StatelessWidget {
                       },
                       icon: const Icon(Icons.edit, color: Color(0xFF84CC16)),
                     ),
+                    IconButton(
+                      onPressed: () async {
+                        final bool? confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) {
+                            return AlertDialog(
+                              backgroundColor: const Color(0xFF1E293B),
+                              title: const Text(
+                                'Supprimer le cours',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              content: const Text(
+                                'Voulez-vous vraiment supprimer ce cours ?',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: const Text('Annuler'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: const Text(
+                                    'Supprimer',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (confirm == true) {
+                          try {
+                            await CourseService().deleteCourse(doc.id);
+
+                            if (!context.mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cours supprimé avec succès'),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!context.mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Erreur lors de la suppression : $e',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                    ),
                   ],
                 ),
               );

@@ -246,4 +246,14 @@ class CourseService {
       'quiz': sanitizedQuiz,
     });
   }
+
+  Future<void> deleteCourse(String courseId) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    await _firestore.collection('courses').doc(courseId).delete();
+  }
 }
