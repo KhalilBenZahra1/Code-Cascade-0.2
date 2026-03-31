@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../../services/course_service.dart';
 import 'learner_course_home_page.dart';
 
-class ProgressPage extends StatelessWidget {
-  const ProgressPage({super.key});
+class CompletedCoursesPage extends StatelessWidget {
+  const CompletedCoursesPage({super.key});
 
   Future<void> _refresh() async {
     await Future.delayed(const Duration(milliseconds: 500));
@@ -25,12 +25,12 @@ class ProgressPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Cours en progression',
+          'Cours terminés',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: courseService.getInProgressCourses(),
+        stream: courseService.getCompletedCourses(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -60,7 +60,7 @@ class ProgressPage extends StatelessWidget {
                       SizedBox(height: 250),
                       Center(
                         child: Text(
-                          'Aucun cours en progression',
+                          'Aucun cours terminé',
                           style: TextStyle(color: Colors.white70),
                         ),
                       ),
@@ -88,14 +88,12 @@ class ProgressPage extends StatelessWidget {
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF84CC16,
-                                ).withOpacity(0.15),
+                                color: Colors.blue.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
-                                Icons.menu_book_outlined,
-                                color: Color(0xFF84CC16),
+                                Icons.check_circle_outline,
+                                color: Colors.blue,
                               ),
                             ),
                             const SizedBox(width: 14),
@@ -145,10 +143,8 @@ class ProgressPage extends StatelessWidget {
                                         );
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF84CC16,
-                                        ),
-                                        foregroundColor: Colors.black,
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 12,
                                         ),
@@ -158,7 +154,7 @@ class ProgressPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      child: const Text('Continuer'),
+                                      child: const Text('Revoir'),
                                     ),
                                   ),
                                 ],

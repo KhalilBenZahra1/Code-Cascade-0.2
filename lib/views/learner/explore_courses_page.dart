@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/course_service.dart';
-import 'learner_course_home_page.dart';
 
-class ProgressPage extends StatelessWidget {
-  const ProgressPage({super.key});
+class ExploreCoursesPage extends StatelessWidget {
+  const ExploreCoursesPage({super.key});
 
   Future<void> _refresh() async {
     await Future.delayed(const Duration(milliseconds: 500));
@@ -14,6 +14,7 @@ class ProgressPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final CourseService courseService = CourseService();
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -25,12 +26,12 @@ class ProgressPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Cours en progression',
+          'Explorer les cours',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: courseService.getInProgressCourses(),
+        stream: courseService.getPublishedCourses(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -60,7 +61,7 @@ class ProgressPage extends StatelessWidget {
                       SizedBox(height: 250),
                       Center(
                         child: Text(
-                          'Aucun cours en progression',
+                          'Aucun cours disponible',
                           style: TextStyle(color: Colors.white70),
                         ),
                       ),
@@ -74,6 +75,28 @@ class ProgressPage extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final doc = docs[index];
                       final data = doc.data();
+
+                      final bool isEnrolled = currentUserId != null
+                          ? courseService.isCourseEnrolled(data, currentUserId)
+                          : false;
+
+                      final bool isInProgress = currentUserId != null
+                          ? courseService.isCourseInProgress(
+                              data,
+                              currentUserId,
+                            )
+                          : false;
+
+                      final bool isCompleted = currentUserId != null
+                          ? courseService.isCourseCompleted(data, currentUserId)
+                          : false;
+
+                      final bool isLinked = currentUserId != null
+                          ? courseService.isLearnerLinkedToCourse(
+                              data,
+                              currentUserId,
+                            )
+                          : false;
 
                       return Container(
                         padding: const EdgeInsets.all(16),
@@ -129,26 +152,57 @@ class ProgressPage extends StatelessWidget {
                                       fontSize: 12,
                                     ),
                                   ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${(data['quiz'] as List? ?? []).length} question(s)',
+                                    style: const TextStyle(
+                                      color: Color(0xFF84CC16),
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   const SizedBox(height: 12),
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                LearnerCourseHomePage(
-                                                  courseId: doc.id,
-                                                ),
-                                          ),
-                                        );
-                                      },
+                                      onPressed: isLinked
+                                          ? null
+                                          : () async {
+                                              try {
+                                                await courseService
+                                                    .enrollInCourse(doc.id);
+
+                                                if (!context.mounted) return;
+
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Cours ajouté à la liste des cours suivis',
+                                                    ),
+                                                  ),
+                                                );
+                                              } catch (e) {
+                                                if (!context.mounted) return;
+
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Erreur lors de l’ajout : $e',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF84CC16,
-                                        ),
-                                        foregroundColor: Colors.black,
+                                        backgroundColor: isLinked
+                                            ? Colors.grey.shade700
+                                            : const Color(0xFF84CC16),
+                                        foregroundColor: isLinked
+                                            ? Colors.white70
+                                            : Colors.black,
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 12,
                                         ),
@@ -158,7 +212,15 @@ class ProgressPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      child: const Text('Continuer'),
+                                      child: Text(
+                                        isCompleted
+                                            ? 'Terminé'
+                                            : isInProgress
+                                            ? 'En cours'
+                                            : isEnrolled
+                                            ? 'Déjà suivi'
+                                            : 'Ajouter au cours suivis',
+                                      ),
                                     ),
                                   ),
                                 ],

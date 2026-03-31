@@ -143,6 +143,15 @@ class CourseService {
       'updatedAt': FieldValue.serverTimestamp(),
       'files': uploadedFiles,
       'quiz': sanitizedQuiz,
+
+      // Learners qui ont ajouté le cours à leur liste "Cours suivis"
+      'enrolledLearnerIds': <String>[],
+
+      // Learners qui ont commencé le cours
+      'inProgressLearnerIds': <String>[],
+
+      // Learners qui ont terminé le cours
+      'completedLearnerIds': <String>[],
     });
   }
 
@@ -255,5 +264,189 @@ class CourseService {
     }
 
     await _firestore.collection('courses').doc(courseId).delete();
+  }
+
+  // ==================== MÉTHODES LEARNER ====================
+
+  /// Récupère tous les cours publiés par les formateurs
+  Stream<QuerySnapshot<Map<String, dynamic>>> getPublishedCourses() {
+    return _firestore
+        .collection('courses')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Récupère un seul cours par son ID
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getCourseById(
+    String courseId,
+  ) {
+    return _firestore.collection('courses').doc(courseId).snapshots();
+  }
+
+  /// Récupère les cours suivis par l'apprenant connecté
+  /// Ici : cours ajoutés mais pas encore commencés
+  Stream<QuerySnapshot<Map<String, dynamic>>> getEnrolledCourses() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('enrolledLearnerIds', arrayContains: user.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Récupère les cours en progression pour l'apprenant connecté
+  Stream<QuerySnapshot<Map<String, dynamic>>> getInProgressCourses() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('inProgressLearnerIds', arrayContains: user.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Récupère les cours terminés pour l'apprenant connecté
+  Stream<QuerySnapshot<Map<String, dynamic>>> getCompletedCourses() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('completedLearnerIds', arrayContains: user.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  /// Compte le nombre de cours suivis par l'apprenant connecté
+  Stream<int> getEnrolledCoursesCount() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('enrolledLearnerIds', arrayContains: user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  /// Compte le nombre de cours en progression
+  Stream<int> getInProgressCoursesCount() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('inProgressLearnerIds', arrayContains: user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  /// Compte le nombre de cours terminés
+  Stream<int> getCompletedCoursesCount() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('completedLearnerIds', arrayContains: user.uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  /// Ajoute le learner à la liste "Cours suivis"
+  /// arrayUnion évite les doublons automatiquement
+  Future<void> enrollInCourse(String courseId) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    await _firestore.collection('courses').doc(courseId).update({
+      'enrolledLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Quand le learner clique sur "Commencer"
+  /// Le cours quitte "Cours suivis" et va dans "Progression"
+  Future<void> startCourse(String courseId) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    await _firestore.collection('courses').doc(courseId).update({
+      'enrolledLearnerIds': FieldValue.arrayRemove([user.uid]),
+      'inProgressLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Quand le learner termine le cours
+  /// Le cours quitte "Progression" et va dans "Terminés"
+  Future<void> completeCourse(String courseId) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    await _firestore.collection('courses').doc(courseId).update({
+      'inProgressLearnerIds': FieldValue.arrayRemove([user.uid]),
+      'completedLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Vérifie si le learner existe déjà dans au moins une des listes du cours
+  bool isLearnerLinkedToCourse(Map<String, dynamic> courseData, String userId) {
+    final List enrolled = List.from(courseData['enrolledLearnerIds'] ?? []);
+    final List inProgress = List.from(courseData['inProgressLearnerIds'] ?? []);
+    final List completed = List.from(courseData['completedLearnerIds'] ?? []);
+
+    return enrolled.contains(userId) ||
+        inProgress.contains(userId) ||
+        completed.contains(userId);
+  }
+
+  /// Vérifie si le learner suit déjà ce cours
+  bool isCourseEnrolled(Map<String, dynamic> courseData, String userId) {
+    final List enrolled = List.from(courseData['enrolledLearnerIds'] ?? []);
+    return enrolled.contains(userId);
+  }
+
+  /// Vérifie si le learner est déjà en progression sur ce cours
+  bool isCourseInProgress(Map<String, dynamic> courseData, String userId) {
+    final List inProgress = List.from(courseData['inProgressLearnerIds'] ?? []);
+    return inProgress.contains(userId);
+  }
+
+  /// Vérifie si le learner a déjà terminé ce cours
+  bool isCourseCompleted(Map<String, dynamic> courseData, String userId) {
+    final List completed = List.from(courseData['completedLearnerIds'] ?? []);
+    return completed.contains(userId);
   }
 }

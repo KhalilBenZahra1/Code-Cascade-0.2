@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+
 import '../../providers/profile_provider.dart';
+import '../../services/course_service.dart';
+import 'enrolled_courses_page.dart';
+import 'explore_courses_page.dart';
+import 'progress_page.dart';
+import 'completed_courses_page.dart';
 
 class LearnerDashboardPage extends StatefulWidget {
   const LearnerDashboardPage({super.key});
@@ -11,6 +17,8 @@ class LearnerDashboardPage extends StatefulWidget {
 }
 
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
+  final CourseService _courseService = CourseService();
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +50,10 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          ScaffoldMessenger.of(
+          Navigator.push(
             context,
-          ).showSnackBar(const SnackBar(content: Text('Explorer les cours')));
+            MaterialPageRoute(builder: (_) => const ExploreCoursesPage()),
+          );
         },
         backgroundColor: const Color(0xFF84CC16),
         foregroundColor: Colors.black,
@@ -144,26 +153,68 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   Widget _buildStatsCards() {
     return Row(
       children: [
-        _buildStatCard(
-          icon: Icons.menu_book_outlined,
-          iconColor: Color(0xFF84CC16),
-          value: '5',
-          label: 'Cours suivis',
-        ),
+        StreamBuilder<int>(
+          stream: _courseService.getEnrolledCoursesCount(),
+          builder: (context, snapshot) {
+            final int enrolledCount = snapshot.data ?? 0;
 
-        const SizedBox(width: 12),
-        _buildStatCard(
-          icon: Icons.check_circle_outline,
-          iconColor: Colors.blue,
-          value: '2',
-          label: 'Terminés',
+            return _buildStatCard(
+              icon: Icons.menu_book_outlined,
+              iconColor: const Color(0xFF84CC16),
+              value: enrolledCount.toString(),
+              label: 'Cours suivis',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const EnrolledCoursesPage(),
+                  ),
+                );
+              },
+            );
+          },
         ),
         const SizedBox(width: 12),
-        _buildStatCard(
-          icon: Icons.trending_up,
-          iconColor: Colors.orange,
-          value: '68%',
-          label: 'Progression',
+        StreamBuilder<int>(
+          stream: _courseService.getCompletedCoursesCount(),
+          builder: (context, snapshot) {
+            final int completedCount = snapshot.data ?? 0;
+
+            return _buildStatCard(
+              icon: Icons.check_circle_outline,
+              iconColor: Colors.blue,
+              value: completedCount.toString(),
+              label: 'Terminés',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CompletedCoursesPage(),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+        const SizedBox(width: 12),
+        StreamBuilder<int>(
+          stream: _courseService.getInProgressCoursesCount(),
+          builder: (context, snapshot) {
+            final int inProgressCount = snapshot.data ?? 0;
+
+            return _buildStatCard(
+              icon: Icons.trending_up,
+              iconColor: Colors.orange,
+              value: inProgressCount.toString(),
+              label: 'Progression',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProgressPage()),
+                );
+              },
+            );
+          },
         ),
       ],
     );
@@ -174,33 +225,37 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     required Color iconColor,
     required String value,
     required String label,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: iconColor, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor, size: 24),
+              const SizedBox(height: 12),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );

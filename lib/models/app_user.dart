@@ -26,6 +26,15 @@ class AppUser {
   bool get isLearner => role == 'Apprenant';
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
+    final createdAtValue = map['createdAt'];
+
+    DateTime parsedCreatedAt;
+    if (createdAtValue is Timestamp) {
+      parsedCreatedAt = createdAtValue.toDate();
+    } else {
+      parsedCreatedAt = DateTime.now();
+    }
+
     return AppUser(
       uid: map['uid'] ?? '',
       fullName: map['fullName'] ?? '',
@@ -36,7 +45,7 @@ class AppUser {
       interests: map['interests'] != null
           ? List<String>.from(map['interests'])
           : null,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: parsedCreatedAt,
     );
   }
 

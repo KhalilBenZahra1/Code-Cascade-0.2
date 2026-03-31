@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../../services/course_service.dart';
 import 'learner_course_home_page.dart';
 
-class ProgressPage extends StatelessWidget {
-  const ProgressPage({super.key});
+class EnrolledCoursesPage extends StatelessWidget {
+  const EnrolledCoursesPage({super.key});
 
   Future<void> _refresh() async {
     await Future.delayed(const Duration(milliseconds: 500));
@@ -25,12 +25,12 @@ class ProgressPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Cours en progression',
+          'Cours suivis',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: courseService.getInProgressCourses(),
+        stream: courseService.getEnrolledCourses(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -60,7 +60,7 @@ class ProgressPage extends StatelessWidget {
                       SizedBox(height: 250),
                       Center(
                         child: Text(
-                          'Aucun cours en progression',
+                          'Vous ne suivez encore aucun cours',
                           style: TextStyle(color: Colors.white70),
                         ),
                       ),
@@ -129,20 +129,48 @@ class ProgressPage extends StatelessWidget {
                                       fontSize: 12,
                                     ),
                                   ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${(data['quiz'] as List? ?? []).length} question(s)',
+                                    style: const TextStyle(
+                                      color: Color(0xFF84CC16),
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   const SizedBox(height: 12),
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.push(
+                                      onPressed: () async {
+                                        final navigator = Navigator.of(context);
+                                        final messenger = ScaffoldMessenger.of(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                LearnerCourseHomePage(
-                                                  courseId: doc.id,
-                                                ),
-                                          ),
                                         );
+
+                                        try {
+                                          // 1) déplacer le cours vers "Progression"
+                                          await courseService.startCourse(
+                                            doc.id,
+                                          );
+
+                                          // 2) ouvrir immédiatement le cours
+                                          navigator.push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  LearnerCourseHomePage(
+                                                    courseId: doc.id,
+                                                  ),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          messenger.showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Erreur lors du démarrage : $e',
+                                              ),
+                                            ),
+                                          );
+                                        }
                                       },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(
@@ -158,7 +186,7 @@ class ProgressPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      child: const Text('Continuer'),
+                                      child: const Text('Commencer'),
                                     ),
                                   ),
                                 ],
