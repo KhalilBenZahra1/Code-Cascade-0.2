@@ -73,7 +73,7 @@ class CoursesListPage extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF84CC16).withOpacity(0.15),
+                        color: const Color(0xFF84CC16).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(

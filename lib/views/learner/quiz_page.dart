@@ -58,10 +58,10 @@ class _QuizPageState extends State<QuizPage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
+        bool isLoading = false;
+
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
-            bool isLoading = false;
-
             return AlertDialog(
               backgroundColor: const Color(0xFF1E293B),
               title: const Text(
@@ -133,7 +133,7 @@ class _QuizPageState extends State<QuizPage> {
                     foregroundColor: Colors.black,
                     disabledBackgroundColor: const Color(
                       0xFF84CC16,
-                    ).withOpacity(0.5),
+                    ).withValues(alpha: 0.5),
                   ),
                   child: isLoading
                       ? const SizedBox(
@@ -347,7 +347,9 @@ class _QuizPageState extends State<QuizPage> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF84CC16).withOpacity(0.15)
+                                ? const Color(
+                                    0xFF84CC16,
+                                  ).withValues(alpha: 0.15)
                                 : const Color(0xFF1E293B),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
@@ -410,10 +412,10 @@ class _QuizPageState extends State<QuizPage> {
                         margin: const EdgeInsets.only(top: 8),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.12),
+                          color: Colors.blue.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: Colors.blue.withOpacity(0.4),
+                            color: Colors.blue.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Column(

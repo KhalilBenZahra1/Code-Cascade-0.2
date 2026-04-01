@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 
 class CourseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -71,14 +72,14 @@ class CourseService {
       final String? path = file['path'];
 
       if (path == null || path.isEmpty) {
-        print('Fichier ignoré : path null ou vide');
+        debugPrint('Fichier ignoré : path null ou vide');
         continue;
       }
 
       final File localFile = File(path);
 
       if (!localFile.existsSync()) {
-        print('Fichier introuvable : $path');
+        debugPrint('Fichier introuvable : $path');
         continue;
       }
 
@@ -86,9 +87,9 @@ class CourseService {
       final String fileType = file['type'] ?? 'unknown';
       final int fileSize = file['size'] ?? 0;
 
-      print('START UPLOAD: $fileName');
-      print('PATH: $path');
-      print('SIZE: $fileSize');
+      debugPrint('START UPLOAD: $fileName');
+      debugPrint('PATH: $path');
+      debugPrint('SIZE: $fileSize');
 
       final Reference storageRef = _storage.ref().child(
         'courses/${user.uid}/$courseId/$fileName',
@@ -97,16 +98,16 @@ class CourseService {
       final uploadTask = storageRef.putFile(localFile);
 
       uploadTask.snapshotEvents.listen((snapshot) {
-        print(
+        debugPrint(
           'PROGRESS $fileName : ${snapshot.bytesTransferred}/${snapshot.totalBytes}',
         );
       });
 
       await uploadTask;
-      print('UPLOAD DONE: $fileName');
+      debugPrint('UPLOAD DONE: $fileName');
 
       final String downloadUrl = await storageRef.getDownloadURL();
-      print('DOWNLOAD URL: $downloadUrl');
+      debugPrint('DOWNLOAD URL: $downloadUrl');
 
       uploadedFiles.add({
         'name': fileName,
@@ -398,11 +399,22 @@ class CourseService {
       throw Exception("Utilisateur non connecté.");
     }
 
-    await _firestore.collection('courses').doc(courseId).update({
-      'enrolledLearnerIds': FieldValue.arrayRemove([user.uid]),
-      'inProgressLearnerIds': FieldValue.arrayUnion([user.uid]),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _firestore
+        .collection('courses')
+        .doc(courseId)
+        .update({
+          'enrolledLearnerIds': FieldValue.arrayRemove([user.uid]),
+          'inProgressLearnerIds': FieldValue.arrayUnion([user.uid]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(
+          const Duration(seconds: 12),
+          onTimeout: () {
+            throw Exception(
+              "Le serveur met trop de temps à répondre. Vérifiez votre connexion puis réessayez.",
+            );
+          },
+        );
   }
 
   /// Quand le learner termine le cours

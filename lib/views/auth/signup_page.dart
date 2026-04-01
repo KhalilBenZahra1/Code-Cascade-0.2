@@ -208,7 +208,9 @@ class _SignupPageState extends State<SignupPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF84CC16).withOpacity(0.2),
+                            color: const Color(
+                              0xFF84CC16,
+                            ).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -399,13 +401,13 @@ class _SignupPageState extends State<SignupPage> {
                                     : [],
                               );
 
-                              if (!mounted) return;
+                              if (!context.mounted) return;
                               Navigator.pushReplacementNamed(
                                 context,
                                 result.targetRoute,
                               );
                             } on FirebaseAuthException catch (e) {
-                              if (!mounted) return;
+                              if (!context.mounted) return;
 
                               String message = 'Une erreur est survenue';
                               if (e.code == 'email-already-in-use') {
@@ -423,7 +425,7 @@ class _SignupPageState extends State<SignupPage> {
                                 ),
                               );
                             } catch (e) {
-                              if (!mounted) return;
+                              if (!context.mounted) return;
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -445,7 +447,7 @@ class _SignupPageState extends State<SignupPage> {
                       foregroundColor: Colors.black,
                       disabledBackgroundColor: const Color(
                         0xFF84CC16,
-                      ).withOpacity(0.5),
+                      ).withValues(alpha: 0.5),
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

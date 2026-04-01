@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
 
           // Overlay sombre
-          Container(color: const Color(0xFF0F172A).withOpacity(0.4)),
+          Container(color: const Color(0xFF0F172A).withValues(alpha: 0.4)),
 
           // Contenu
           Column(

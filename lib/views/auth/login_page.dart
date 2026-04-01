@@ -263,7 +263,10 @@ class _LoginPageState extends State<LoginPage> {
 
                             await _authService.sendPasswordResetEmail(email);
 
+                            if (!context.mounted) return;
                             Navigator.pop(context);
+
+                            if (!context.mounted) return;
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -274,6 +277,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             );
                           } catch (e) {
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(

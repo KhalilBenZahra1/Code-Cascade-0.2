@@ -232,7 +232,7 @@ class _Step2QuizCreationState extends State<Step2QuizCreation> {
         border: Border.all(
           color: hasCorrect
               ? Colors.grey.shade800
-              : Colors.orange.withOpacity(0.5),
+              : Colors.orange.withValues(alpha: 0.5),
           width: hasCorrect ? 1 : 2,
         ),
       ),
@@ -278,7 +278,7 @@ class _Step2QuizCreationState extends State<Step2QuizCreation> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.2),
+                          color: Colors.orange.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Row(
@@ -446,7 +446,7 @@ class _Step2QuizCreationState extends State<Step2QuizCreation> {
             height: 32,
             decoration: BoxDecoration(
               color: isCorrect
-                  ? const Color(0xFF84CC16).withOpacity(0.2)
+                  ? const Color(0xFF84CC16).withValues(alpha: 0.2)
                   : const Color(0xFF0F172A),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(

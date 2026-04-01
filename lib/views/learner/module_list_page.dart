@@ -218,7 +218,7 @@ class ModuleListPage extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: _getFileColor(
                                     fileType,
-                                  ).withOpacity(0.15),
+                                  ).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(

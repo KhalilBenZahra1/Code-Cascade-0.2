@@ -51,7 +51,7 @@ class CompletedCoursesPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF84CC16).withOpacity(0.15),
+        color: const Color(0xFF84CC16).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
@@ -79,10 +79,10 @@ class CompletedCoursesPage extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
+        bool isLoading = false;
+
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
-            bool isLoading = false;
-
             return AlertDialog(
               backgroundColor: const Color(0xFF1E293B),
               title: const Text(
@@ -153,7 +153,7 @@ class CompletedCoursesPage extends StatelessWidget {
                     foregroundColor: Colors.black,
                     disabledBackgroundColor: const Color(
                       0xFF84CC16,
-                    ).withOpacity(0.5),
+                    ).withValues(alpha: 0.5),
                   ),
                   child: isLoading
                       ? const SizedBox(
@@ -255,7 +255,7 @@ class CompletedCoursesPage extends StatelessWidget {
                                   width: 52,
                                   height: 52,
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.15),
+                                    color: Colors.blue.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const Icon(

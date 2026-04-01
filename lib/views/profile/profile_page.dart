@@ -93,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           try {
                             await onSave(value);
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             Navigator.pop(context);
 
                             // 👉 Cas email
@@ -116,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               );
                             }
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Erreur : $e'),
@@ -224,7 +224,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           try {
                             await provider.updateExpertises(selected);
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             Navigator.pop(context);
 
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -234,7 +234,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             );
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Erreur : $e'),
@@ -399,7 +399,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               newPassword: newPassword,
                             );
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             Navigator.pop(context);
 
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -409,7 +409,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             );
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Erreur : $e'),
@@ -634,7 +634,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onPressed: () async {
                       try {
                         await provider.signOut();
-                        if (!mounted) return;
+                        if (!context.mounted) return;
 
                         Navigator.pushNamedAndRemoveUntil(
                           context,
@@ -642,6 +642,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           (route) => false,
                         );
                       } catch (e) {
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Erreur : $e'),

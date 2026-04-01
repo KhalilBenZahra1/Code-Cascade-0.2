@@ -113,7 +113,7 @@ class ExploreCoursesPage extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFF84CC16,
-                                ).withOpacity(0.15),
+                                ).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(

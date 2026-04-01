@@ -232,7 +232,7 @@ class _Step1CourseInfoState extends State<Step1CourseInfo> {
                   color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFF84CC16).withOpacity(0.3),
+                    color: const Color(0xFF84CC16).withValues(alpha: 0.3),
                     width: 2,
                     style: BorderStyle.solid,
                   ),
@@ -242,7 +242,7 @@ class _Step1CourseInfoState extends State<Step1CourseInfo> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF84CC16).withOpacity(0.1),
+                        color: const Color(0xFF84CC16).withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -302,7 +302,7 @@ class _Step1CourseInfoState extends State<Step1CourseInfo> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _getFileColor(fileType).withOpacity(0.2),
+              color: _getFileColor(fileType).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(

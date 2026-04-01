@@ -93,7 +93,7 @@ class EnrolledCoursesPage extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFF84CC16,
-                                ).withOpacity(0.15),
+                                ).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
@@ -144,32 +144,29 @@ class EnrolledCoursesPage extends StatelessWidget {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: () async {
-                                        final navigator = Navigator.of(context);
-                                        final messenger = ScaffoldMessenger.of(
+                                      onPressed: () {
+                                        Navigator.push(
                                           context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ProgressPage(),
+                                          ),
                                         );
 
-                                        try {
-                                          await courseService.startCourse(
-                                            doc.id,
-                                          );
-
-                                          navigator.push(
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const ProgressPage(),
-                                            ),
-                                          );
-                                        } catch (e) {
-                                          messenger.showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Erreur lors du démarrage : $e',
-                                              ),
-                                            ),
-                                          );
-                                        }
+                                        courseService
+                                            .startCourse(doc.id)
+                                            .catchError((e) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Erreur lors du démarrage : $e',
+                                                  ),
+                                                ),
+                                              );
+                                            });
                                       },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(
