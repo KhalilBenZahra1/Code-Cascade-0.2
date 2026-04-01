@@ -1,15 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/profile_provider.dart';
 import '../../services/course_service.dart';
+import 'completed_courses_page.dart';
 import 'enrolled_courses_page.dart';
 import 'explore_courses_page.dart';
 import 'module_list_page.dart';
 import 'progress_page.dart';
-import 'completed_courses_page.dart';
 
 class LearnerDashboardPage extends StatefulWidget {
   const LearnerDashboardPage({super.key});
@@ -20,17 +21,9 @@ class LearnerDashboardPage extends StatefulWidget {
 
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   final CourseService _courseService = CourseService();
+
   Future<void> _refreshDashboard() async {
-    // Recharge explicitement les données du profil
     await context.read<ProfileProvider>().loadUser();
-
-    // Force un rebuild du dashboard pour remettre à jour
-    // les StreamBuilder des cartes et tout le contenu affiché
-    if (mounted) {
-      setState(() {});
-    }
-
-    // Petit délai léger pour rendre le refresh visuel plus propre
     await Future.delayed(const Duration(milliseconds: 400));
   }
 
@@ -52,7 +45,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
           onRefresh: _refreshDashboard,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -109,30 +102,26 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                 ),
               ],
             ),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/profile'),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF84CC16),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        provider.isLoading ? '?' : provider.getInitials(),
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, '/profile'),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF84CC16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    provider.isLoading ? '?' : provider.getInitials(),
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ],
         );
@@ -147,7 +136,6 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
           stream: _courseService.getEnrolledCoursesCount(),
           builder: (context, snapshot) {
             final int enrolledCount = snapshot.data ?? 0;
-
             return _buildStatCard(
               icon: Icons.menu_book_outlined,
               iconColor: const Color(0xFF84CC16),
@@ -169,7 +157,6 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
           stream: _courseService.getCompletedCoursesCount(),
           builder: (context, snapshot) {
             final int completedCount = snapshot.data ?? 0;
-
             return _buildStatCard(
               icon: Icons.check_circle_outline,
               iconColor: Colors.blue,
@@ -191,7 +178,6 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
           stream: _courseService.getInProgressCoursesCount(),
           builder: (context, snapshot) {
             final int inProgressCount = snapshot.data ?? 0;
-
             return _buildStatCard(
               icon: Icons.trending_up,
               iconColor: Colors.orange,
@@ -416,8 +402,6 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   }
 
   Widget _buildPopularCourses() {
-    final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -430,10 +414,11 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
           ),
         ),
         const SizedBox(height: 16),
-        StreamBuilder(
-          stream: _courseService.getPublishedCourses(),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _courseService.getInProgressCourses(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
@@ -444,21 +429,12 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
 
             if (snapshot.hasError) {
               return Text(
-                'Erreur de chargement des cours',
+                'Erreur de chargement des cours en progression',
                 style: TextStyle(color: Colors.red.shade300),
               );
             }
 
-            final docs = snapshot.data?.docs ?? [];
-            final myActiveCourses = docs.where((doc) {
-              final data = doc.data();
-              final List enrolled = List.from(data['enrolledLearnerIds'] ?? []);
-              final List inProgress = List.from(
-                data['inProgressLearnerIds'] ?? [],
-              );
-              return enrolled.contains(userId) || inProgress.contains(userId);
-            }).toList();
-
+            final myActiveCourses = snapshot.data?.docs ?? [];
             if (myActiveCourses.isEmpty) {
               return Container(
                 width: double.infinity,
@@ -468,11 +444,13 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
-                  'Aucun cours actif pour le moment',
+                  'Aucun cours en progression pour le moment',
                   style: TextStyle(color: Colors.white70),
                 ),
               );
             }
+
+            final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
             return Column(
               children: myActiveCourses.asMap().entries.map((entry) {
