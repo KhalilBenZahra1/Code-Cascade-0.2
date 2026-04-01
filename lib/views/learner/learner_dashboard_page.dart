@@ -437,9 +437,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF84CC16),
-                  ),
+                  child: CircularProgressIndicator(color: Color(0xFF84CC16)),
                 ),
               );
             }
@@ -512,6 +510,16 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                     ? 0
                     : completedParts / totalParts;
                 final int percentage = (progress * 100).round();
+                final bool isClickable = completedParts > 0;
+
+                final int displayedCompleted = isClickable ? completedParts : 0;
+                final int displayedTotal = isClickable ? totalParts : 0;
+                final double displayedProgress = isClickable
+                    ? progress.clamp(0, 1)
+                    : 0;
+                final String displayedPercentage = isClickable
+                    ? percentage.toString()
+                    : '0';
 
                 return Padding(
                   padding: EdgeInsets.only(
@@ -519,20 +527,24 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                   ),
                   child: _buildCourseItem(
                     title: title,
-                    subtitle: '$completedParts/$totalParts parties cochées',
-                    progress: progress.clamp(0, 1),
-                    percentage: percentage.toString(),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ModuleListPage(
-                            courseId: doc.id,
-                            courseTitle: title,
-                          ),
-                        ),
-                      );
-                    },
+                    subtitle:
+                        '$displayedCompleted/$displayedTotal parties cochées',
+                    progress: displayedProgress,
+                    percentage: displayedPercentage,
+                    isEnabled: isClickable,
+                    onTap: isClickable
+                        ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ModuleListPage(
+                                  courseId: doc.id,
+                                  courseTitle: title,
+                                ),
+                              ),
+                            );
+                          }
+                        : null,
                   ),
                 );
               }).toList(),
@@ -548,6 +560,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     required String subtitle,
     required double progress,
     required String percentage,
+    required bool isEnabled,
     VoidCallback? onTap,
   }) {
     return GestureDetector(
@@ -555,7 +568,9 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: isEnabled
+              ? const Color(0xFF1E293B)
+              : const Color(0xFF1E293B).withOpacity(0.75),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(

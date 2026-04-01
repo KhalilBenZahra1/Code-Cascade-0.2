@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/course_service.dart';
 import 'quiz_page.dart';
 
-class ModuleListPage extends StatelessWidget {
+class ModuleListPage extends StatefulWidget {
   final String courseId;
   final String courseTitle;
 
@@ -15,6 +17,18 @@ class ModuleListPage extends StatelessWidget {
     required this.courseId,
     required this.courseTitle,
   });
+
+  @override
+  State<ModuleListPage> createState() => _ModuleListPageState();
+}
+
+class _ModuleListPageState extends State<ModuleListPage> {
+  final CourseService _courseService = CourseService();
+
+  // Cache local optimiste pour rendre le check instantane en UI.
+  final Map<String, bool> _localOverrides = {};
+  Timer? _flushTimer;
+  bool _isSyncing = false;
 
   Future<void> _openFileUrl(BuildContext context, String url) async {
     final Uri uri = Uri.parse(url);
@@ -26,7 +40,7 @@ class ModuleListPage extends StatelessWidget {
 
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible d’ouvrir ce fichier')),
+        const SnackBar(content: Text('Impossible d\'ouvrir ce fichier')),
       );
     }
   }
@@ -66,9 +80,9 @@ class ModuleListPage extends StatelessWidget {
       case 'pdf':
         return 'Document PDF';
       case 'presentation':
-        return 'Présentation';
+        return 'Presentation';
       case 'video':
-        return 'Vidéo';
+        return 'Video';
       case 'excel':
         return 'Fichier Excel';
       default:
@@ -76,10 +90,80 @@ class ModuleListPage extends StatelessWidget {
     }
   }
 
+  String _partPath(String fileKey, int partIndex) => '$fileKey.p$partIndex';
+
+  bool _resolveChecked({
+    required Map<String, dynamic> fileChecks,
+    required String fileKey,
+    required int partIndex,
+  }) {
+    final String path = _partPath(fileKey, partIndex);
+    if (_localOverrides.containsKey(path)) {
+      return _localOverrides[path] == true;
+    }
+    return fileChecks['p$partIndex'] == true;
+  }
+
+  void _toggleCheck({
+    required String fileKey,
+    required int partIndex,
+    required bool currentValue,
+  }) {
+    final String path = _partPath(fileKey, partIndex);
+    setState(() {
+      _localOverrides[path] = !currentValue;
+    });
+    _scheduleFlush();
+  }
+
+  void _scheduleFlush() {
+    _flushTimer?.cancel();
+    _flushTimer = Timer(const Duration(milliseconds: 350), _flushPending);
+  }
+
+  Future<void> _flushPending() async {
+    if (_localOverrides.isEmpty || _isSyncing) return;
+
+    final Map<String, bool> payload = Map<String, bool>.from(_localOverrides);
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      await _courseService.setFilePartChecksBatch(
+        courseId: widget.courseId,
+        updates: payload,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        for (final key in payload.keys) {
+          _localOverrides.remove(key);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur de synchronisation: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _flushTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final CourseService courseService = CourseService();
-
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
@@ -90,18 +174,35 @@ class ModuleListPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          courseTitle,
+          widget.courseTitle,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          if (_isSyncing)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF84CC16),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: courseService.getCourseById(courseId),
+        stream: _courseService.getCourseById(widget.courseId),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(
               child: CircularProgressIndicator(color: Color(0xFF84CC16)),
             );
@@ -128,10 +229,12 @@ class ModuleListPage extends StatelessWidget {
           final data = snapshot.data!.data()!;
           final List files = List.from(data['files'] ?? []);
           final String description = data['description'] ?? '';
-            final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-            final Map<String, dynamic> learnerChecks =
-              Map<String, dynamic>.from(data['learnerFileChecks'] ?? {});
-            final Map<String, dynamic> userChecks =
+
+          final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+          final Map<String, dynamic> learnerChecks = Map<String, dynamic>.from(
+            data['learnerFileChecks'] ?? {},
+          );
+          final Map<String, dynamic> userChecks =
               userId.isNotEmpty && learnerChecks[userId] is Map
               ? Map<String, dynamic>.from(learnerChecks[userId] as Map)
               : <String, dynamic>{};
@@ -152,7 +255,7 @@ class ModuleListPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            data['title'] ?? courseTitle,
+                            data['title'] ?? widget.courseTitle,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -180,7 +283,6 @@ class ModuleListPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
-
                     const Text(
                       'Contenu du cours',
                       style: TextStyle(
@@ -190,7 +292,6 @@ class ModuleListPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-
                     if (files.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(20),
@@ -206,7 +307,7 @@ class ModuleListPage extends StatelessWidget {
                     else
                       ...files.asMap().entries.map<Widget>((entry) {
                         final int fileIndex = entry.key;
-                        final file = entry.value;
+                        final dynamic file = entry.value;
                         final Map<String, dynamic> item =
                             Map<String, dynamic>.from(file);
                         final String fileType = item['type'] ?? 'unknown';
@@ -226,151 +327,144 @@ class ModuleListPage extends StatelessWidget {
                             color: const Color(0xFF1E293B),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Row(
+                          child: Column(
                             children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: _getFileColor(
-                                    fileType,
-                                  ).withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  _getFileIcon(fileType),
-                                  color: _getFileColor(fileType),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      fileName,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: _getFileColor(
+                                        fileType,
+                                      ).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB • ${_getFileTypeLabel(fileType)}',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 12,
+                                    child: Icon(
+                                      _getFileIcon(fileType),
+                                      color: _getFileColor(fileType),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          fileName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB • ${_getFileTypeLabel(fileType)}',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade400,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  ElevatedButton(
+                                    onPressed: fileUrl.isEmpty
+                                        ? null
+                                        : () => _openFileUrl(context, fileUrl),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF84CC16),
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                    child: const Text('Ouvrir'),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              ElevatedButton(
-                                onPressed: fileUrl.isEmpty
-                                    ? null
-                                    : () => _openFileUrl(context, fileUrl),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF84CC16),
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const Text('Ouvrir'),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: List.generate(3, (partIndex) {
+                                  final bool isChecked = _resolveChecked(
+                                    fileChecks: fileChecks,
+                                    fileKey: fileKey,
+                                    partIndex: partIndex,
+                                  );
+
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      right: partIndex < 2 ? 8 : 0,
+                                    ),
+                                    child: OutlinedButton.icon(
+                                      onPressed: userId.isEmpty
+                                          ? null
+                                          : () {
+                                              _toggleCheck(
+                                                fileKey: fileKey,
+                                                partIndex: partIndex,
+                                                currentValue: isChecked,
+                                              );
+                                            },
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(
+                                          color: isChecked
+                                              ? const Color(0xFF84CC16)
+                                              : Colors.grey.shade700,
+                                        ),
+                                        backgroundColor: isChecked
+                                            ? const Color(
+                                                0xFF84CC16,
+                                              ).withOpacity(0.15)
+                                            : Colors.transparent,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      icon: Icon(
+                                        isChecked
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        size: 16,
+                                        color: isChecked
+                                            ? const Color(0xFF84CC16)
+                                            : Colors.white70,
+                                      ),
+                                      label: Text(
+                                        'Partie ${partIndex + 1}',
+                                        style: TextStyle(
+                                          color: isChecked
+                                              ? const Color(0xFF84CC16)
+                                              : Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: List.generate(3, (partIndex) {
-                              final String partKey = 'p$partIndex';
-                              final bool isChecked =
-                                  fileChecks[partKey] == true;
-
-                              return Padding(
-                                padding: EdgeInsets.only(
-                                  right: partIndex < 2 ? 8 : 0,
-                                ),
-                                child: OutlinedButton.icon(
-                                  onPressed: userId.isEmpty
-                                      ? null
-                                      : () async {
-                                          try {
-                                            await courseService
-                                                .setFilePartChecked(
-                                                  courseId: courseId,
-                                                  fileKey: fileKey,
-                                                  partIndex: partIndex,
-                                                  checked: !isChecked,
-                                                );
-                                          } catch (e) {
-                                            if (!context.mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'Erreur: $e',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                      color: isChecked
-                                          ? const Color(0xFF84CC16)
-                                          : Colors.grey.shade700,
-                                    ),
-                                    backgroundColor: isChecked
-                                        ? const Color(
-                                            0xFF84CC16,
-                                          ).withOpacity(0.15)
-                                        : Colors.transparent,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  icon: Icon(
-                                    isChecked
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
-                                    size: 16,
-                                    color: isChecked
-                                        ? const Color(0xFF84CC16)
-                                        : Colors.white70,
-                                  ),
-                                  label: Text(
-                                    'Partie ${partIndex + 1}',
-                                    style: TextStyle(
-                                      color: isChecked
-                                          ? const Color(0xFF84CC16)
-                                          : Colors.white70,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
                           ),
                         );
                       }),
                   ],
                 ),
               ),
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: const BoxDecoration(
@@ -385,13 +479,16 @@ class ModuleListPage extends StatelessWidget {
                         child: OutlinedButton(
                           onPressed: () async {
                             try {
-                              await courseService.completeCourse(courseId);
+                              await _flushPending();
+                              await _courseService.completeCourse(
+                                widget.courseId,
+                              );
 
                               if (!context.mounted) return;
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Cours marqué comme terminé'),
+                                  content: Text('Cours marque comme termine'),
                                 ),
                               );
                             } catch (e) {
@@ -420,8 +517,8 @@ class ModuleListPage extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => QuizPage(
-                                  courseId: courseId,
-                                  courseTitle: courseTitle,
+                                  courseId: widget.courseId,
+                                  courseTitle: widget.courseTitle,
                                 ),
                               ),
                             );
