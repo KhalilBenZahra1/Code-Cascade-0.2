@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,7 +8,6 @@ import '../../services/course_service.dart';
 import 'completed_courses_page.dart';
 import 'enrolled_courses_page.dart';
 import 'explore_courses_page.dart';
-import 'module_list_page.dart';
 import 'progress_page.dart';
 
 class LearnerDashboardPage extends StatefulWidget {
@@ -415,10 +413,10 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
         ),
         const SizedBox(height: 16),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _courseService.getInProgressCourses(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
+          stream: _courseService.getEnrolledCourses(),
+          builder: (context, enrolledSnapshot) {
+            if (enrolledSnapshot.connectionState == ConnectionState.waiting &&
+                !enrolledSnapshot.hasData) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
@@ -427,105 +425,119 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
               );
             }
 
-            if (snapshot.hasError) {
+            if (enrolledSnapshot.hasError) {
               return Text(
-                'Erreur de chargement des cours en progression',
+                'Erreur de chargement des cours suivis',
                 style: TextStyle(color: Colors.red.shade300),
               );
             }
 
-            final myActiveCourses = snapshot.data?.docs ?? [];
-            if (myActiveCourses.isEmpty) {
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Aucun cours en progression pour le moment',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              );
-            }
-
-            final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-            return Column(
-              children: myActiveCourses.asMap().entries.map((entry) {
-                final index = entry.key;
-                final doc = entry.value;
-                final data = doc.data();
-
-                final String title = data['title'] ?? 'Sans titre';
-                final List files = List.from(data['files'] ?? []);
-                final int totalParts = files.length * 3;
-
-                final Map<String, dynamic> learnerChecks =
-                    Map<String, dynamic>.from(data['learnerFileChecks'] ?? {});
-                final Map<String, dynamic> userChecks =
-                    learnerChecks[userId] is Map
-                    ? Map<String, dynamic>.from(learnerChecks[userId] as Map)
-                    : <String, dynamic>{};
-
-                int completedParts = 0;
-                for (int fileIndex = 0; fileIndex < files.length; fileIndex++) {
-                  final String fileKey = 'f$fileIndex';
-                  final Map<String, dynamic> fileChecks =
-                      userChecks[fileKey] is Map
-                      ? Map<String, dynamic>.from(userChecks[fileKey] as Map)
-                      : <String, dynamic>{};
-
-                  for (int partIndex = 0; partIndex < 3; partIndex++) {
-                    if (fileChecks['p$partIndex'] == true) {
-                      completedParts++;
-                    }
-                  }
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _courseService.getInProgressCourses(),
+              builder: (context, inProgressSnapshot) {
+                if (inProgressSnapshot.connectionState ==
+                        ConnectionState.waiting &&
+                    !inProgressSnapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF84CC16),
+                      ),
+                    ),
+                  );
                 }
 
-                final double progress = totalParts == 0
-                    ? 0
-                    : completedParts / totalParts;
-                final int percentage = (progress * 100).round();
-                final bool isClickable = completedParts > 0;
+                if (inProgressSnapshot.hasError) {
+                  return Text(
+                    'Erreur de chargement des cours en progression',
+                    style: TextStyle(color: Colors.red.shade300),
+                  );
+                }
 
-                final int displayedCompleted = isClickable ? completedParts : 0;
-                final int displayedTotal = isClickable ? totalParts : 0;
-                final double displayedProgress = isClickable
-                    ? progress.clamp(0, 1)
-                    : 0;
-                final String displayedPercentage = isClickable
-                    ? percentage.toString()
-                    : '0';
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _courseService.getCompletedCourses(),
+                  builder: (context, completedSnapshot) {
+                    if (completedSnapshot.connectionState ==
+                            ConnectionState.waiting &&
+                        !completedSnapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF84CC16),
+                          ),
+                        ),
+                      );
+                    }
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index == myActiveCourses.length - 1 ? 0 : 12,
-                  ),
-                  child: _buildCourseItem(
-                    title: title,
-                    subtitle:
-                        '$displayedCompleted/$displayedTotal parties cochées',
-                    progress: displayedProgress,
-                    percentage: displayedPercentage,
-                    isEnabled: isClickable,
-                    onTap: isClickable
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ModuleListPage(
-                                  courseId: doc.id,
-                                  courseTitle: title,
-                                ),
-                              ),
-                            );
-                          }
-                        : null,
-                  ),
+                    if (completedSnapshot.hasError) {
+                      return Text(
+                        'Erreur de chargement des cours terminés',
+                        style: TextStyle(color: Colors.red.shade300),
+                      );
+                    }
+
+                    final List<Map<String, String>> items = [];
+
+                    for (final doc in enrolledSnapshot.data?.docs ?? []) {
+                      final data = doc.data();
+                      items.add({
+                        'title': data['title'] ?? 'Sans titre',
+                        'status': 'Cours suivis',
+                      });
+                    }
+
+                    for (final doc in inProgressSnapshot.data?.docs ?? []) {
+                      final data = doc.data();
+                      items.add({
+                        'title': data['title'] ?? 'Sans titre',
+                        'status': 'Progression',
+                      });
+                    }
+
+                    for (final doc in completedSnapshot.data?.docs ?? []) {
+                      final data = doc.data();
+                      items.add({
+                        'title': data['title'] ?? 'Sans titre',
+                        'status': 'Terminés',
+                      });
+                    }
+
+                    if (items.isEmpty) {
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Aucun cours pour le moment',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == items.length - 1 ? 0 : 12,
+                          ),
+                          child: _buildCourseItem(
+                            title: item['title']!,
+                            subtitle: item['status']!,
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
                 );
-              }).toList(),
+              },
             );
           },
         ),
@@ -533,70 +545,32 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     );
   }
 
-  Widget _buildCourseItem({
-    required String title,
-    required String subtitle,
-    required double progress,
-    required String percentage,
-    required bool isEnabled,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isEnabled
-              ? const Color(0xFF1E293B)
-              : const Color(0xFF1E293B).withOpacity(0.75),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  '$percentage %',
-                  style: const TextStyle(
-                    color: Color(0xFF84CC16),
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+  Widget _buildCourseItem({required String title, required String subtitle}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.grey.shade800,
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF84CC16),
-                ),
-                minHeight: 6,
-              ),
-            ),
-          ],
-        ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
       ),
     );
   }

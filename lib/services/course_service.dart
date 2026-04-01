@@ -389,59 +389,6 @@ class CourseService {
     });
   }
 
-  /// Coche/décoche une partie d'un fichier de cours pour l'apprenant connecté.
-  /// Le stockage se fait sous: learnerFileChecks.<uid>.<fileKey>.p0|p1|p2
-  Future<void> setFilePartChecked({
-    required String courseId,
-    required String fileKey,
-    required int partIndex,
-    required bool checked,
-  }) async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception("Utilisateur non connecté.");
-    }
-
-    if (partIndex < 0 || partIndex > 2) {
-      throw Exception("Index de partie invalide.");
-    }
-
-    await _firestore
-        .collection('courses')
-        .doc(courseId)
-        .update({'learnerFileChecks.${user.uid}.$fileKey.p$partIndex': checked})
-        .timeout(const Duration(seconds: 8));
-  }
-
-  /// Met a jour plusieurs checks en une seule ecriture pour reduire la latence.
-  /// updates utilise des cles de la forme "f0.p1" -> true/false.
-  Future<void> setFilePartChecksBatch({
-    required String courseId,
-    required Map<String, bool> updates,
-  }) async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception("Utilisateur non connecté.");
-    }
-
-    if (updates.isEmpty) {
-      return;
-    }
-
-    final Map<String, dynamic> payload = {};
-    updates.forEach((key, value) {
-      payload['learnerFileChecks.${user.uid}.$key'] = value;
-    });
-
-    await _firestore
-        .collection('courses')
-        .doc(courseId)
-        .update(payload)
-        .timeout(const Duration(seconds: 8));
-  }
-
   /// Quand le learner clique sur "Commencer"
   /// Le cours quitte "Cours suivis" et va dans "Progression"
   Future<void> startCourse(String courseId) async {
