@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -127,6 +128,13 @@ class ModuleListPage extends StatelessWidget {
           final data = snapshot.data!.data()!;
           final List files = List.from(data['files'] ?? []);
           final String description = data['description'] ?? '';
+            final String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+            final Map<String, dynamic> learnerChecks =
+              Map<String, dynamic>.from(data['learnerFileChecks'] ?? {});
+            final Map<String, dynamic> userChecks =
+              userId.isNotEmpty && learnerChecks[userId] is Map
+              ? Map<String, dynamic>.from(learnerChecks[userId] as Map)
+              : <String, dynamic>{};
 
           return Column(
             children: [
@@ -196,13 +204,20 @@ class ModuleListPage extends StatelessWidget {
                         ),
                       )
                     else
-                      ...files.map<Widget>((file) {
+                      ...files.asMap().entries.map<Widget>((entry) {
+                        final int fileIndex = entry.key;
+                        final file = entry.value;
                         final Map<String, dynamic> item =
                             Map<String, dynamic>.from(file);
                         final String fileType = item['type'] ?? 'unknown';
                         final String fileName = item['name'] ?? 'fichier';
                         final int fileSize = item['size'] ?? 0;
                         final String fileUrl = item['url'] ?? '';
+                        final String fileKey = 'f$fileIndex';
+                        final Map<String, dynamic> fileChecks =
+                            userChecks[fileKey] is Map
+                            ? Map<String, dynamic>.from(userChecks[fileKey])
+                            : <String, dynamic>{};
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -271,6 +286,84 @@ class ModuleListPage extends StatelessWidget {
                                 child: const Text('Ouvrir'),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: List.generate(3, (partIndex) {
+                              final String partKey = 'p$partIndex';
+                              final bool isChecked =
+                                  fileChecks[partKey] == true;
+
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  right: partIndex < 2 ? 8 : 0,
+                                ),
+                                child: OutlinedButton.icon(
+                                  onPressed: userId.isEmpty
+                                      ? null
+                                      : () async {
+                                          try {
+                                            await courseService
+                                                .setFilePartChecked(
+                                                  courseId: courseId,
+                                                  fileKey: fileKey,
+                                                  partIndex: partIndex,
+                                                  checked: !isChecked,
+                                                );
+                                          } catch (e) {
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Erreur: $e',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: isChecked
+                                          ? const Color(0xFF84CC16)
+                                          : Colors.grey.shade700,
+                                    ),
+                                    backgroundColor: isChecked
+                                        ? const Color(
+                                            0xFF84CC16,
+                                          ).withOpacity(0.15)
+                                        : Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  icon: Icon(
+                                    isChecked
+                                        ? Icons.check_circle
+                                        : Icons.radio_button_unchecked,
+                                    size: 16,
+                                    color: isChecked
+                                        ? const Color(0xFF84CC16)
+                                        : Colors.white70,
+                                  ),
+                                  label: Text(
+                                    'Partie ${partIndex + 1}',
+                                    style: TextStyle(
+                                      color: isChecked
+                                          ? const Color(0xFF84CC16)
+                                          : Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
                           ),
                         );
                       }),

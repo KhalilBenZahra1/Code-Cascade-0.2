@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/course_service.dart';
-import 'learner_course_home_page.dart';
+// import 'learner_course_home_page.dart';
 import 'progress_page.dart';
 
 class EnrolledCoursesPage extends StatelessWidget {

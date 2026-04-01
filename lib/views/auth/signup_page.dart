@@ -471,6 +471,36 @@ class _SignupPageState extends State<SignupPage> {
                 ),
                 const SizedBox(height: 24),
                 Row(
+                  children: [
+                    Expanded(
+                      child: Divider(color: Colors.grey.shade700, height: 1),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'ou continuer avec',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(color: Colors.grey.shade700, height: 1),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _socialButton(
+                  icon: Icons.g_mobiledata,
+                  text: 'Continuer avec Google',
+                  onTap: _isLoading
+                      ? null
+                      : () async => await _handleGoogleLogin(),
+                ),
+                const SizedBox(height: 12),
+                const SizedBox(height: 24),
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
@@ -497,6 +527,36 @@ class _SignupPageState extends State<SignupPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final result = await _authService.signInWithGoogle(
+        selectedRole: _selectedRole,
+      );
+      if (!mounted) return;
+
+      Navigator.pushReplacementNamed(context, result.targetRoute);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildTextField({
@@ -634,6 +694,32 @@ class _SignupPageState extends State<SignupPage> {
           onSaved: onSaved,
         ),
       ],
+    );
+  }
+
+  Widget _socialButton({
+    required IconData icon,
+    required String text,
+    required VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, color: Colors.white, size: 20),
+        label: Text(
+          text,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xFF1E293B),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 }

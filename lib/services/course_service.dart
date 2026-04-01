@@ -389,6 +389,30 @@ class CourseService {
     });
   }
 
+  /// Coche/décoche une partie d'un fichier de cours pour l'apprenant connecté.
+  /// Le stockage se fait sous: learnerFileChecks.<uid>.<fileKey>.p0|p1|p2
+  Future<void> setFilePartChecked({
+    required String courseId,
+    required String fileKey,
+    required int partIndex,
+    required bool checked,
+  }) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    if (partIndex < 0 || partIndex > 2) {
+      throw Exception("Index de partie invalide.");
+    }
+
+    await _firestore.collection('courses').doc(courseId).update({
+      'learnerFileChecks.${user.uid}.$fileKey.p$partIndex': checked,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Quand le learner clique sur "Commencer"
   /// Le cours quitte "Cours suivis" et va dans "Progression"
   Future<void> startCourse(String courseId) async {
@@ -407,7 +431,32 @@ class CourseService {
 
   /// Quand le learner termine le cours
   /// Le cours quitte "Progression" et va dans "Terminés"
-  Future<void> completeCourse(String courseId) async {
+  Future<void> completeCourse(String courseId, {int? score}) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    final Map<String, dynamic> updateData = {
+      'inProgressLearnerIds': FieldValue.arrayRemove([user.uid]),
+      'completedLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // Sauvegarder le score si fourni (format map par userId)
+    if (score != null) {
+      updateData['learnerScores.${user.uid}.score'] = score;
+      updateData['learnerScores.${user.uid}.completedAt'] =
+          FieldValue.serverTimestamp();
+    }
+
+    await _firestore.collection('courses').doc(courseId).update(updateData);
+  }
+
+  /// Quand le learner veut revoir un cours terminé
+  /// Le cours quitte "Terminés" et retourne dans "Cours suivis"
+  Future<void> restartCourse(String courseId) async {
     final user = _auth.currentUser;
 
     if (user == null) {
@@ -415,8 +464,8 @@ class CourseService {
     }
 
     await _firestore.collection('courses').doc(courseId).update({
-      'inProgressLearnerIds': FieldValue.arrayRemove([user.uid]),
-      'completedLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'completedLearnerIds': FieldValue.arrayRemove([user.uid]),
+      'enrolledLearnerIds': FieldValue.arrayUnion([user.uid]),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

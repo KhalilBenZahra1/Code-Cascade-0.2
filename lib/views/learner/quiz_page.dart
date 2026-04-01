@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/course_service.dart';
+import 'completed_courses_page.dart';
 import 'module_list_page.dart';
 
 class QuizPage extends StatefulWidget {
@@ -55,51 +56,99 @@ class _QuizPageState extends State<QuizPage> {
 
     await showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Text(
-            'Résultat du quiz',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Text(
-            'Votre score est de $score / ${questions.length}',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Fermer'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(dialogContext);
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            bool isLoading = false;
 
-                try {
-                  await _courseService.completeCourse(widget.courseId);
-
-                  if (!mounted) return;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cours marqué comme terminé')),
-                  );
-                } catch (e) {
-                  if (!mounted) return;
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF84CC16),
-                foregroundColor: Colors.black,
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E293B),
+              title: const Text(
+                'Résultat du quiz',
+                style: TextStyle(color: Colors.white),
               ),
-              child: const Text('Marquer terminé'),
-            ),
-          ],
+              content: Text(
+                'Votre score est de $score / ${questions.length}',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          Navigator.pop(dialogContext);
+                        },
+                  child: const Text('Fermer'),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isLoading = true;
+                          });
+
+                          try {
+                            await _courseService.completeCourse(
+                              widget.courseId,
+                              score: score,
+                            );
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+
+                            if (!mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cours marqué comme terminé'),
+                              ),
+                            );
+
+                            // Naviguer vers la page Cours terminés
+                            if (!mounted) return;
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CompletedCoursesPage(),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+
+                            setDialogState(() {
+                              isLoading = false;
+                            });
+
+                            if (!mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Erreur : $e')),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF84CC16),
+                    foregroundColor: Colors.black,
+                    disabledBackgroundColor: const Color(
+                      0xFF84CC16,
+                    ).withOpacity(0.5),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Text('Marquer terminé'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
