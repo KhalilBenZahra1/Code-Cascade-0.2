@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 
 import '../../services/course_service.dart';
 import 'learner_course_home_page.dart';
+import 'progress_page.dart';
 
 class EnrolledCoursesPage extends StatelessWidget {
   const EnrolledCoursesPage({super.key});
 
   Future<void> _refresh() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Le rafraîchissement se fait automatiquement via le Stream
+    // On attend juste un peu pour que l'animation du RefreshIndicator soit visible
+    await Future.delayed(const Duration(milliseconds: 800));
   }
 
   @override
@@ -148,18 +151,14 @@ class EnrolledCoursesPage extends StatelessWidget {
                                         );
 
                                         try {
-                                          // 1) déplacer le cours vers "Progression"
                                           await courseService.startCourse(
                                             doc.id,
                                           );
 
-                                          // 2) ouvrir immédiatement le cours
                                           navigator.push(
                                             MaterialPageRoute(
                                               builder: (_) =>
-                                                  LearnerCourseHomePage(
-                                                    courseId: doc.id,
-                                                  ),
+                                                  const ProgressPage(),
                                             ),
                                           );
                                         } catch (e) {

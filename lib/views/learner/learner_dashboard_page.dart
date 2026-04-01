@@ -18,6 +18,19 @@ class LearnerDashboardPage extends StatefulWidget {
 
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   final CourseService _courseService = CourseService();
+  Future<void> _refreshDashboard() async {
+    // Recharge explicitement les données du profil
+    await context.read<ProfileProvider>().loadUser();
+
+    // Force un rebuild du dashboard pour remettre à jour
+    // les StreamBuilder des cartes et tout le contenu affiché
+    if (mounted) {
+      setState(() {});
+    }
+
+    // Petit délai léger pour rendre le refresh visuel plus propre
+    await Future.delayed(const Duration(milliseconds: 400));
+  }
 
   @override
   void initState() {
@@ -32,19 +45,25 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _buildStatsCards(),
-              const SizedBox(height: 24),
-              _buildActivityChart(),
-              const SizedBox(height: 24),
-              _buildPopularCourses(),
-            ],
+        child: RefreshIndicator(
+          color: const Color(0xFF84CC16),
+          onRefresh: _refreshDashboard,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 24),
+                _buildStatsCards(),
+                const SizedBox(height: 24),
+                _buildActivityChart(),
+                const SizedBox(height: 24),
+                _buildPopularCourses(),
+                const SizedBox(height: 100),
+              ],
+            ),
           ),
         ),
       ),

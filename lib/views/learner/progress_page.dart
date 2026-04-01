@@ -158,7 +158,7 @@ class ProgressPage extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      child: const Text('Continuer'),
+                                      child: const Text('Commencer maintenant'),
                                     ),
                                   ),
                                 ],
