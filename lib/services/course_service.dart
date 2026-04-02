@@ -153,6 +153,9 @@ class CourseService {
 
       // Learners qui ont terminé le cours
       'completedLearnerIds': <String>[],
+
+      // Learners qui ont deja termine ce cours au moins une fois
+      'everCompletedLearnerIds': <String>[],
     });
   }
 
@@ -375,6 +378,40 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
+  /// KPI learner: nombre de cours termines (visible en termines OU deja termines une fois)
+  Stream<int> getCompletedKpiCount() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore.collection('courses').snapshots().map((snapshot) {
+      int count = 0;
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final List completed = List.from(data['completedLearnerIds'] ?? []);
+        final List everCompleted = List.from(
+          data['everCompletedLearnerIds'] ?? [],
+        );
+        final Map<String, dynamic> scores = Map<String, dynamic>.from(
+          data['learnerScores'] ?? {},
+        );
+
+        final bool isVisibleInCompleted = completed.contains(user.uid);
+        final bool hasEverCompletedFlag = everCompleted.contains(user.uid);
+        final bool hasLearnerScore = scores[user.uid] != null;
+
+        if (isVisibleInCompleted || hasEverCompletedFlag || hasLearnerScore) {
+          count++;
+        }
+      }
+
+      return count;
+    });
+  }
+
   /// Ajoute le learner à la liste "Cours suivis"
   /// arrayUnion évite les doublons automatiquement
   Future<void> enrollInCourse(String courseId) async {
@@ -417,6 +454,31 @@ class CourseService {
         );
   }
 
+  /// Supprime rapidement un cours de la liste "Cours suivis"
+  Future<void> removeFromEnrolled(String courseId) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    await _firestore
+        .collection('courses')
+        .doc(courseId)
+        .update({
+          'enrolledLearnerIds': FieldValue.arrayRemove([user.uid]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {
+            throw Exception(
+              "Suppression trop lente. Vérifiez la connexion puis réessayez.",
+            );
+          },
+        );
+  }
+
   /// Quand le learner termine le cours
   /// Le cours quitte "Progression" et va dans "Terminés"
   Future<void> completeCourse(String courseId, {int? score}) async {
@@ -429,6 +491,7 @@ class CourseService {
     final Map<String, dynamic> updateData = {
       'inProgressLearnerIds': FieldValue.arrayRemove([user.uid]),
       'completedLearnerIds': FieldValue.arrayUnion([user.uid]),
+      'everCompletedLearnerIds': FieldValue.arrayUnion([user.uid]),
       'updatedAt': FieldValue.serverTimestamp(),
     };
 

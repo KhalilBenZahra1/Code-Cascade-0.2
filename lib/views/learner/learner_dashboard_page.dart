@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +22,11 @@ class LearnerDashboardPage extends StatefulWidget {
 
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   final CourseService _courseService = CourseService();
+  static const int _kpiWindowMinutes = 15;
+  StreamSubscription<int>? _kpiSubscription;
+  Timer? _minuteTimer;
+  int _currentCompletedKpi = 0;
+  final List<int> _last7MinutesKpi = List<int>.filled(_kpiWindowMinutes, 0);
 
   Future<void> _refreshDashboard() async {
     await context.read<ProfileProvider>().loadUser();
@@ -28,8 +36,34 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _startKpiTracking();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfileProvider>().loadUser();
+    });
+  }
+
+  @override
+  void dispose() {
+    _kpiSubscription?.cancel();
+    _minuteTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startKpiTracking() {
+    _kpiSubscription = _courseService.getCompletedKpiCount().listen((value) {
+      if (!mounted) return;
+      setState(() {
+        _currentCompletedKpi = value;
+        _last7MinutesKpi[_last7MinutesKpi.length - 1] = value;
+      });
+    });
+
+    _minuteTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _last7MinutesKpi.removeAt(0);
+        _last7MinutesKpi.add(_currentCompletedKpi);
+      });
     });
   }
 
@@ -236,6 +270,19 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   }
 
   Widget _buildActivityChart() {
+    final int maxValue = _last7MinutesKpi.isEmpty
+        ? 0
+        : _last7MinutesKpi.reduce(math.max);
+    final double maxY = math.max(4, maxValue + 1).toDouble();
+    final double interval = maxY <= 8 ? 1 : (maxY / 4).ceilToDouble();
+    final int maxX = _kpiWindowMinutes - 1;
+
+    final List<FlSpot> spots = _last7MinutesKpi
+        .asMap()
+        .entries
+        .map((entry) => FlSpot(entry.key.toDouble(), entry.value.toDouble()))
+        .toList();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -252,7 +299,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Activité 7 jours',
+                    'Activité 15 minutes',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -261,7 +308,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Progression des 7 jours',
+                    'KPI des cours terminés (15 dernières minutes)',
                     style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                   ),
                 ],
@@ -272,13 +319,17 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                   color: const Color(0xFF84CC16).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.trending_up, color: Color(0xFF84CC16), size: 16),
-                    SizedBox(width: 4),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: Color(0xFF84CC16),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
                     Text(
-                      '+12%',
-                      style: TextStyle(
+                      '$_currentCompletedKpi',
+                      style: const TextStyle(
                         color: Color(0xFF84CC16),
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -297,7 +348,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: 20,
+                  horizontalInterval: interval,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(color: Colors.grey.shade800, strokeWidth: 1);
                   },
@@ -313,7 +364,7 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: 20,
+                      interval: interval,
                       getTitlesWidget: (value, meta) {
                         return Text(
                           '${value.toInt()}',
@@ -330,25 +381,26 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
-                        const days = [
-                          'Lun',
-                          'Mar',
-                          'Mer',
-                          'Jeu',
-                          'Ven',
-                          'Sam',
-                          'Dim',
-                        ];
-                        if (value.toInt() >= 0 && value.toInt() < days.length) {
-                          return Text(
-                            days[value.toInt()],
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 10,
-                            ),
-                          );
+                        final int minuteIndex = value.toInt();
+                        if (minuteIndex < 0 || minuteIndex > maxX) {
+                          return const SizedBox.shrink();
                         }
-                        return const Text('');
+
+                        if (minuteIndex != maxX && minuteIndex % 3 != 0) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final String label = minuteIndex == maxX
+                            ? 'Now'
+                            : '-${maxX - minuteIndex}m';
+
+                        return Text(
+                          label,
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 10,
+                          ),
+                        );
                       },
                       reservedSize: 30,
                     ),
@@ -356,20 +408,12 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 6,
+                maxX: maxX.toDouble(),
                 minY: 0,
-                maxY: 100,
+                maxY: maxY,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 40),
-                      FlSpot(1, 50),
-                      FlSpot(2, 35),
-                      FlSpot(3, 65),
-                      FlSpot(4, 55),
-                      FlSpot(5, 75),
-                      FlSpot(6, 45),
-                    ],
+                    spots: spots,
                     isCurved: true,
                     color: const Color(0xFF84CC16),
                     barWidth: 3,

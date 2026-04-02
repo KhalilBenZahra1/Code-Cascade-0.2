@@ -106,13 +106,54 @@ class EnrolledCoursesPage extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    data['title'] ?? 'Sans titre',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          data['title'] ?? 'Sans titre',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.redAccent,
+                                        ),
+                                        tooltip: 'Supprimer de Cours suivis',
+                                        onPressed: () {
+                                          courseService
+                                              .removeFromEnrolled(doc.id)
+                                              .then((_) {
+                                                if (!context.mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Cours supprimé de Cours suivis',
+                                                    ),
+                                                  ),
+                                                );
+                                              })
+                                              .catchError((e) {
+                                                if (!context.mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Erreur suppression : $e',
+                                                    ),
+                                                  ),
+                                                );
+                                              });
+                                        },
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
