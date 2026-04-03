@@ -14,6 +14,8 @@ class _SignupPageState extends State<SignupPage> {
   String? _fullName;
   String? _email;
   final List<String> _selectedExpertises = [];
+  final TextEditingController _otherExpertiseController =
+      TextEditingController();
   String? _password;
   String? _confirmPassword;
   bool _isPasswordVisible = false;
@@ -35,7 +37,42 @@ class _SignupPageState extends State<SignupPage> {
     'Kotlin',
     'DevOps',
     'UI/UX Design',
+    'Autre',
   ];
+
+  bool _isOtherExpertiseSelected() {
+    return _selectedExpertises.contains('Autre');
+  }
+
+  bool _hasValidTrainerExpertiseSelection() {
+    final hasStandardExpertise = _selectedExpertises.any((e) => e != 'Autre');
+    final hasCustomExpertise =
+        _isOtherExpertiseSelected() &&
+        _otherExpertiseController.text.trim().isNotEmpty;
+
+    return hasStandardExpertise || hasCustomExpertise;
+  }
+
+  List<String> _expertisesForSubmit() {
+    final expertises = _selectedExpertises
+        .where((e) => e != 'Autre')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    final customExpertise = _otherExpertiseController.text.trim();
+    if (_isOtherExpertiseSelected() && customExpertise.isNotEmpty) {
+      expertises.add(customExpertise);
+    }
+
+    return expertises.toList();
+  }
+
+  @override
+  void dispose() {
+    _otherExpertiseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -255,8 +292,11 @@ class _SignupPageState extends State<SignupPage> {
                                 _selectedExpertises.add(expertise);
                               } else {
                                 _selectedExpertises.remove(expertise);
+                                if (expertise == 'Autre') {
+                                  _otherExpertiseController.clear();
+                                }
                               }
-                              if (_selectedExpertises.isNotEmpty) {
+                              if (_hasValidTrainerExpertiseSelection()) {
                                 _showExpertiseError = false;
                               }
                             });
@@ -286,7 +326,46 @@ class _SignupPageState extends State<SignupPage> {
                       }).toList(),
                     ),
                   ),
-                  if (_showExpertiseError && _selectedExpertises.isEmpty)
+                  if (_isOtherExpertiseSelected()) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _otherExpertiseController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Précisez votre domaine',
+                        hintStyle: TextStyle(color: Colors.grey.shade500),
+                        prefixIcon: const Icon(
+                          Icons.edit_outlined,
+                          color: Color(0xFF84CC16),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF84CC16),
+                          ),
+                        ),
+                      ),
+                      onChanged: (_) {
+                        if (_showExpertiseError &&
+                            _hasValidTrainerExpertiseSelection()) {
+                          setState(() {
+                            _showExpertiseError = false;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                  if (_showExpertiseError)
                     Padding(
                       padding: const EdgeInsets.only(top: 8, left: 4),
                       child: Text(
@@ -361,10 +440,12 @@ class _SignupPageState extends State<SignupPage> {
                   child: ElevatedButton(
                     onPressed: (_acceptTerms && !_isLoading)
                         ? () async {
+                            final validTrainerExpertise =
+                                _selectedRole != 'Formateur' ||
+                                _hasValidTrainerExpertiseSelection();
+
                             setState(() {
-                              _showExpertiseError =
-                                  _selectedRole == 'Formateur' &&
-                                  _selectedExpertises.isEmpty;
+                              _showExpertiseError = !validTrainerExpertise;
                             });
 
                             if (!_formKey.currentState!.validate() ||
@@ -397,7 +478,7 @@ class _SignupPageState extends State<SignupPage> {
                                 password: _password!,
                                 role: _selectedRole,
                                 expertises: _selectedRole == 'Formateur'
-                                    ? _selectedExpertises
+                                    ? _expertisesForSubmit()
                                     : [],
                               );
 
@@ -545,7 +626,6 @@ class _SignupPageState extends State<SignupPage> {
       Navigator.pushReplacementNamed(context, result.targetRoute);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),

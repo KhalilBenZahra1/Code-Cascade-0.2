@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'steps/step1_course_info.dart';
 import 'steps/step2_quiz_creation.dart';
 import '../../../services/course_service.dart';
+import '../../../services/user_service.dart';
 
 class CourseCreationWizardPage extends StatefulWidget {
   final String? courseId;
@@ -25,7 +26,10 @@ class _CourseCreationWizardPageState extends State<CourseCreationWizardPage> {
   ];
 
   final CourseService _courseService = CourseService();
+  final UserService _userService = UserService();
   bool _isPublishing = false;
+  bool _isLoadingExpertises = true;
+  List<String> _trainerExpertises = const [];
 
   @override
   void initState() {
@@ -53,6 +57,35 @@ class _CourseCreationWizardPageState extends State<CourseCreationWizardPage> {
           widget.initialData!['quiz'] ?? [],
         ),
       };
+    }
+
+    _loadTrainerExpertises();
+  }
+
+  Future<void> _loadTrainerExpertises() async {
+    try {
+      final profile = await _userService.getCurrentUserProfile();
+      final expertises = (profile?.expertises ?? const <String>[])
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _trainerExpertises = expertises;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _trainerExpertises = const [];
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingExpertises = false;
+        });
+      }
     }
   }
 
@@ -162,7 +195,15 @@ class _CourseCreationWizardPageState extends State<CourseCreationWizardPage> {
   Widget _buildCurrentStep() {
     switch (_currentStep) {
       case 0:
-        return Step1CourseInfo(data: _courseData, onUpdate: _updateCourseData);
+        if (_isLoadingExpertises) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return Step1CourseInfo(
+          data: _courseData,
+          onUpdate: _updateCourseData,
+          categories: _trainerExpertises,
+        );
       case 1:
         return Step2QuizCreation(
           data: _courseData,
