@@ -68,6 +68,10 @@ class _SignupPageState extends State<SignupPage> {
     return expertises.toList();
   }
 
+  void _navigateAfterAuth(dynamic result) {
+    Navigator.pushNamedAndRemoveUntil(context, '/app-router', (route) => false);
+  }
+
   @override
   void dispose() {
     _otherExpertiseController.dispose();
@@ -483,10 +487,7 @@ class _SignupPageState extends State<SignupPage> {
                               );
 
                               if (!context.mounted) return;
-                              Navigator.pushReplacementNamed(
-                                context,
-                                result.targetRoute,
-                              );
+                              _navigateAfterAuth(result);
                             } on FirebaseAuthException catch (e) {
                               if (!context.mounted) return;
 
@@ -623,7 +624,7 @@ class _SignupPageState extends State<SignupPage> {
       );
       if (!mounted) return;
 
-      Navigator.pushReplacementNamed(context, result.targetRoute);
+      _navigateAfterAuth(result);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

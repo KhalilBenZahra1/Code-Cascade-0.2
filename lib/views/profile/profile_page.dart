@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../providers/profile_provider.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final bool forceExpertiseSetup;
+
+  const ProfilePage({super.key, this.forceExpertiseSetup = false});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -21,14 +23,89 @@ class _ProfilePageState extends State<ProfilePage> {
     'Kotlin',
     'DevOps',
     'UI/UX Design',
+    'Autre',
   ];
+
+  bool _routeArgsInitialized = false;
+  bool _mustCompleteExpertise = false;
+  bool _mandatoryDialogOpened = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfileProvider>().loadUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<ProfileProvider>().loadUser();
+      if (!mounted) return;
+      await _ensureMandatoryExpertiseFlow();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_routeArgsInitialized) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      _mustCompleteExpertise =
+          widget.forceExpertiseSetup || (args['forceExpertiseSetup'] == true);
+    } else {
+      _mustCompleteExpertise = widget.forceExpertiseSetup;
+    }
+
+    _routeArgsInitialized = true;
+  }
+
+  Future<void> _ensureMandatoryExpertiseFlow() async {
+    if (!_mustCompleteExpertise || _mandatoryDialogOpened) {
+      return;
+    }
+
+    final currentRoute = ModalRoute.of(context);
+    if (currentRoute?.isCurrent != true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _ensureMandatoryExpertiseFlow();
+        }
+      });
+      return;
+    }
+
+    final provider = context.read<ProfileProvider>();
+    if (provider.isLoading) {
+      return;
+    }
+
+    if (!provider.isTrainer || provider.expertises.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _mustCompleteExpertise = false;
+        });
+      }
+      return;
+    }
+
+    _mandatoryDialogOpened = true;
+    try {
+      await _showExpertisesDialog(provider, mandatory: true);
+    } finally {
+      _mandatoryDialogOpened = false;
+    }
+
+    if (!mounted) return;
+
+    final refreshedProvider = context.read<ProfileProvider>();
+    if (refreshedProvider.isTrainer &&
+        refreshedProvider.expertises.isNotEmpty) {
+      setState(() {
+        _mustCompleteExpertise = false;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/trainer/dashboard');
+      });
+    }
   }
 
   Future<void> _showEditTextDialog({
@@ -96,7 +173,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (!context.mounted) return;
                             Navigator.pop(context);
 
-                            // 👉 Cas email
+                            // Cas email
                             if (title.toLowerCase().contains('email')) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -107,7 +184,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               );
                             } else {
-                              // 👉 Cas normal (nom, etc.)
+                              // Cas normal (nom, etc.)
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Modification enregistrée'),
@@ -124,7 +201,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             );
                           } finally {
-                            if (mounted) {
+                            if (context.mounted) {
                               setDialogState(() {
                                 isSaving = false;
                               });
@@ -154,13 +231,54 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _showExpertisesDialog(ProfileProvider provider) async {
-    final selected = List<String>.from(provider.expertises);
+  Future<void> _showExpertisesDialog(
+    ProfileProvider provider, {
+    bool mandatory = false,
+  }) async {
+    final standardExpertises = _expertiseList
+        .where((e) => e != 'Autre')
+        .toSet();
+    final selected = provider.expertises
+        .where((e) => standardExpertises.contains(e))
+        .toList();
+    final customExpertises = provider.expertises
+        .where((e) => !standardExpertises.contains(e))
+        .toList();
+    final otherController = TextEditingController(
+      text: customExpertises.isNotEmpty ? customExpertises.first : '',
+    );
+    if (customExpertises.isNotEmpty && !selected.contains('Autre')) {
+      selected.add('Autre');
+    }
 
-    await showDialog(
+    final selectedForSubmit = await showDialog<List<String>>(
       context: context,
-      builder: (context) {
-        bool isSaving = false;
+      barrierDismissible: !mandatory,
+      builder: (dialogContext) {
+        bool showError = false;
+
+        bool hasValidSelection() {
+          final hasStandard = selected.any((e) => e != 'Autre');
+          final hasCustom =
+              selected.contains('Autre') &&
+              otherController.text.trim().isNotEmpty;
+          return hasStandard || hasCustom;
+        }
+
+        List<String> buildExpertisesForSubmit() {
+          final values = selected
+              .where((e) => e != 'Autre')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+
+          final custom = otherController.text.trim();
+          if (selected.contains('Autre') && custom.isNotEmpty) {
+            values.add(custom);
+          }
+
+          return values.toList();
+        }
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -174,95 +292,118 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: TextStyle(color: Colors.white),
               ),
               content: SingleChildScrollView(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _expertiseList.map((expertise) {
-                    final isSelected = selected.contains(expertise);
-
-                    return FilterChip(
-                      label: Text(expertise),
-                      selected: isSelected,
-                      onSelected: (value) {
-                        setDialogState(() {
-                          if (value) {
-                            selected.add(expertise);
-                          } else {
-                            selected.remove(expertise);
-                          }
-                        });
-                      },
-                      selectedColor: const Color(0xFF84CC16),
-                      backgroundColor: const Color(0xFF0F172A),
-                      checkmarkColor: Colors.black,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.black : Colors.white70,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (mandatory)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Choisissez au moins un domaine pour continuer.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
                       ),
-                    );
-                  }).toList(),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _expertiseList.map((expertise) {
+                        final isSelected = selected.contains(expertise);
+
+                        return FilterChip(
+                          label: Text(expertise),
+                          selected: isSelected,
+                          onSelected: (value) {
+                            setDialogState(() {
+                              if (value) {
+                                selected.add(expertise);
+                              } else {
+                                selected.remove(expertise);
+                                if (expertise == 'Autre') {
+                                  otherController.clear();
+                                }
+                              }
+
+                              if (hasValidSelection()) {
+                                showError = false;
+                              }
+                            });
+                          },
+                          selectedColor: const Color(0xFF84CC16),
+                          backgroundColor: const Color(0xFF0F172A),
+                          checkmarkColor: Colors.black,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white70,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (selected.contains('Autre')) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: otherController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Precisez votre domaine',
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
+                          filled: true,
+                          fillColor: const Color(0xFF0F172A),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (showError && hasValidSelection()) {
+                            setDialogState(() {
+                              showError = false;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                    if (showError)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Selectionnez au moins une expertise',
+                          style: TextStyle(
+                            color: Colors.red.shade300,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
-                  child: const Text(
-                    'Annuler',
-                    style: TextStyle(color: Colors.grey),
+                if (!mandatory)
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text(
+                      'Annuler',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ),
-                ),
                 ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          setDialogState(() {
-                            isSaving = true;
-                          });
+                  onPressed: () {
+                    if (!hasValidSelection()) {
+                      setDialogState(() {
+                        showError = true;
+                      });
+                      return;
+                    }
 
-                          try {
-                            await provider.updateExpertises(selected);
-
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Expertises mises à jour'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Erreur : $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          } finally {
-                            if (mounted) {
-                              setDialogState(() {
-                                isSaving = false;
-                              });
-                            }
-                          }
-                        },
+                    Navigator.pop(dialogContext, buildExpertisesForSubmit());
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF84CC16),
                     foregroundColor: Colors.black,
                   ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.black,
-                          ),
-                        )
-                      : const Text('Enregistrer'),
+                  child: const Text('Enregistrer'),
                 ),
               ],
             );
@@ -270,6 +411,54 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       },
     );
+
+    otherController.dispose();
+
+    if (selectedForSubmit == null) {
+      return;
+    }
+
+    try {
+      await provider.updateExpertises(selectedForSubmit);
+
+      if (!mounted) return;
+
+      if (mandatory) {
+        if (mounted) {
+          setState(() {
+            _mustCompleteExpertise = false;
+          });
+        }
+
+        if (!mounted) return;
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/app-router',
+          (route) => false,
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Expertises mises a jour'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red),
+      );
+
+      if (mandatory) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _ensureMandatoryExpertiseFlow();
+        });
+      }
+    }
   }
 
   Future<void> _showPasswordDialog(ProfileProvider provider) async {
@@ -417,7 +606,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             );
                           } finally {
-                            if (mounted) {
+                            if (context.mounted) {
                               setDialogState(() {
                                 isSaving = false;
                               });
@@ -531,142 +720,151 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_mustCompleteExpertise,
+      child: Scaffold(
         backgroundColor: const Color(0xFF0F172A),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text('Mon profil', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Consumer<ProfileProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF84CC16)),
-            );
-          }
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0F172A),
+          elevation: 0,
+          automaticallyImplyLeading: !_mustCompleteExpertise,
+          centerTitle: true,
+          title: const Text(
+            'Mon profil',
+            style: TextStyle(color: Colors.white),
+          ),
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: Consumer<ProfileProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF84CC16)),
+              );
+            }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Container(
-                  width: 84,
-                  height: 84,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF84CC16),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: Text(
-                      provider.getInitials(),
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF84CC16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        provider.getInitials(),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                _buildProfileRow(
-                  icon: Icons.person_outline,
-                  label: 'Nom complet',
-                  value: provider.displayName,
-                  onEdit: () {
-                    _showEditTextDialog(
-                      title: 'Modifier le nom complet',
-                      initialValue: provider.displayName,
-                      onSave: (value) => provider.updateDisplayName(value),
-                    );
-                  },
-                ),
-
-                _buildProfileRow(
-                  icon: Icons.email_outlined,
-                  label: 'Email',
-                  value: provider.email,
-                  onEdit: () {
-                    _showEditTextDialog(
-                      title: 'Modifier l’email',
-                      initialValue: provider.email,
-                      keyboardType: TextInputType.emailAddress,
-                      onSave: (value) => provider.updateEmailOnly(value),
-                    );
-                  },
-                ),
-
-                _buildProfileRow(
-                  icon: Icons.badge_outlined,
-                  label: 'Rôle',
-                  value: provider.role,
-                ),
-
-                if (provider.isTrainer)
                   _buildProfileRow(
-                    icon: Icons.workspace_premium_outlined,
-                    label: 'Expertises',
-                    value: provider.expertises.isEmpty
-                        ? 'Aucune expertise'
-                        : provider.expertises.join(', '),
+                    icon: Icons.person_outline,
+                    label: 'Nom complet',
+                    value: provider.displayName,
                     onEdit: () {
-                      _showExpertisesDialog(provider);
+                      _showEditTextDialog(
+                        title: 'Modifier le nom complet',
+                        initialValue: provider.displayName,
+                        onSave: (value) => provider.updateDisplayName(value),
+                      );
                     },
                   ),
 
-                _buildProfileRow(
-                  icon: Icons.lock_outline,
-                  label: 'Mot de passe',
-                  value: '••••••••',
-                  onEdit: () {
-                    _showPasswordDialog(provider);
-                  },
-                ),
-
-                const SizedBox(height: 30),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        await provider.signOut();
-                        if (!context.mounted) return;
-
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/login',
-                          (route) => false,
-                        );
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Erreur : $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
+                  _buildProfileRow(
+                    icon: Icons.email_outlined,
+                    label: 'Email',
+                    value: provider.email,
+                    onEdit: () {
+                      _showEditTextDialog(
+                        title: "Modifier l'email",
+                        initialValue: provider.email,
+                        keyboardType: TextInputType.emailAddress,
+                        onSave: (value) => provider.updateEmailOnly(value),
+                      );
                     },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Déconnexion'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  ),
+
+                  _buildProfileRow(
+                    icon: Icons.badge_outlined,
+                    label: 'Rôle',
+                    value: provider.role,
+                  ),
+
+                  if (provider.isTrainer)
+                    _buildProfileRow(
+                      icon: Icons.workspace_premium_outlined,
+                      label: 'Expertises',
+                      value: provider.expertises.isEmpty
+                          ? 'Aucune expertise'
+                          : provider.expertises.join(', '),
+                      onEdit: () {
+                        _showExpertisesDialog(provider);
+                      },
+                    ),
+
+                  _buildProfileRow(
+                    icon: Icons.lock_outline,
+                    label: 'Mot de passe',
+                    value: '••••••••',
+                    onEdit: () {
+                      _showPasswordDialog(provider);
+                    },
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _mustCompleteExpertise
+                          ? null
+                          : () async {
+                              try {
+                                await provider.signOut();
+                                if (!context.mounted) return;
+
+                                Navigator.pushNamedAndRemoveUntil(
+                                  context,
+                                  '/login',
+                                  (route) => false,
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Erreur : $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Déconnexion'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

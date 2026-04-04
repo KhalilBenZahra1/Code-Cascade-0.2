@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,10 +22,6 @@ class LearnerDashboardPage extends StatefulWidget {
 class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   final CourseService _courseService = CourseService();
   static const int _kpiWindowMinutes = 15;
-  StreamSubscription<int>? _kpiSubscription;
-  Timer? _minuteTimer;
-  int _currentCompletedKpi = 0;
-  final List<int> _last7MinutesKpi = List<int>.filled(_kpiWindowMinutes, 0);
 
   Future<void> _refreshDashboard() async {
     await context.read<ProfileProvider>().loadUser();
@@ -36,34 +31,8 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _startKpiTracking();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfileProvider>().loadUser();
-    });
-  }
-
-  @override
-  void dispose() {
-    _kpiSubscription?.cancel();
-    _minuteTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startKpiTracking() {
-    _kpiSubscription = _courseService.getCompletedKpiCount().listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _currentCompletedKpi = value;
-        _last7MinutesKpi[_last7MinutesKpi.length - 1] = value;
-      });
-    });
-
-    _minuteTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (!mounted) return;
-      setState(() {
-        _last7MinutesKpi.removeAt(0);
-        _last7MinutesKpi.add(_currentCompletedKpi);
-      });
     });
   }
 
@@ -269,177 +238,246 @@ class _LearnerDashboardPageState extends State<LearnerDashboardPage> {
     );
   }
 
+  List<int> _buildMinuteBuckets(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final List<int> buckets = List<int>.filled(_kpiWindowMinutes, 0);
+
+    final List<DateTime> eventTimes =
+        docs
+            .map((doc) => doc.data()['createdAt'] as Timestamp?)
+            .where((ts) => ts != null)
+            .map((ts) => ts!.toDate())
+            .toList()
+          ..sort();
+
+    if (eventTimes.isEmpty) {
+      return buckets;
+    }
+
+    final DateTime firstEventTime = eventTimes.first;
+
+    for (final eventTime in eventTimes) {
+      final int diffInMinutes = eventTime.difference(firstEventTime).inMinutes;
+
+      if (diffInMinutes < 0 || diffInMinutes >= _kpiWindowMinutes) {
+        continue;
+      }
+
+      buckets[diffInMinutes] = buckets[diffInMinutes] + 1;
+    }
+
+    return buckets;
+  }
+
   Widget _buildActivityChart() {
-    final int maxValue = _last7MinutesKpi.isEmpty
-        ? 0
-        : _last7MinutesKpi.reduce(math.max);
-    final double maxY = math.max(4, maxValue + 1).toDouble();
-    final double interval = maxY <= 8 ? 1 : (maxY / 4).ceilToDouble();
-    final int maxX = _kpiWindowMinutes - 1;
+    return StreamBuilder<int>(
+      stream: _courseService.getCompletedActivityTotalCount(),
+      builder: (context, totalSnapshot) {
+        final int totalCompletedEvents = totalSnapshot.data ?? 0;
 
-    final List<FlSpot> spots = _last7MinutesKpi
-        .asMap()
-        .entries
-        .map((entry) => FlSpot(entry.key.toDouble(), entry.value.toDouble()))
-        .toList();
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _courseService.getRecentCompletedActivityEvents(
+            windowMinutes: _kpiWindowMinutes,
+          ),
+          builder: (context, snapshot) {
+            final List<int> minuteBuckets = snapshot.hasData
+                ? _buildMinuteBuckets(snapshot.data!.docs)
+                : List<int>.filled(_kpiWindowMinutes, 0);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
+            final int maxValue = minuteBuckets.isEmpty
+                ? 0
+                : minuteBuckets.reduce(math.max);
+
+            final double maxY = math.max(4, maxValue + 1).toDouble();
+            final double interval = maxY <= 8 ? 1 : (maxY / 4).ceilToDouble();
+            final int maxX = _kpiWindowMinutes - 1;
+
+            final List<FlSpot> spots = minuteBuckets
+                .asMap()
+                .entries
+                .map(
+                  (entry) =>
+                      FlSpot(entry.key.toDouble(), entry.value.toDouble()),
+                )
+                .toList();
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Activité 15 minutes',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Activité 15 minutes',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Événements de cours terminés (15 dernières minutes)',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF84CC16).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_outline,
+                              color: Color(0xFF84CC16),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$totalCompletedEvents',
+                              style: const TextStyle(
+                                color: Color(0xFF84CC16),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'KPI des cours terminés (15 dernières minutes)',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF84CC16).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle_outline,
-                      color: Color(0xFF84CC16),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$_currentCompletedKpi',
-                      style: const TextStyle(
-                        color: Color(0xFF84CC16),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    height: 150,
+                    child: LineChart(
+                      LineChartData(
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: interval,
+                          getDrawingHorizontalLine: (value) {
+                            return FlLine(
+                              color: Colors.grey.shade800,
+                              strokeWidth: 1,
+                            );
+                          },
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          rightTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              interval: interval,
+                              reservedSize: 30,
+                              getTitlesWidget: (value, meta) {
+                                return Text(
+                                  '${value.toInt()}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 10,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 30,
+                              getTitlesWidget: (value, meta) {
+                                final int minuteIndex = value.toInt();
+
+                                if (minuteIndex < 0 || minuteIndex > maxX) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                if (minuteIndex % 3 != 0 && minuteIndex != 0) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                final String label = '${minuteIndex}m';
+
+                                return Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 10,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        minX: 0,
+                        maxX: maxX.toDouble(),
+                        minY: 0,
+                        maxY: maxY,
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            color: const Color(0xFF84CC16),
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: FlDotData(
+                              show: true,
+                              getDotPainter: (spot, percent, barData, index) {
+                                return FlDotCirclePainter(
+                                  radius: 4,
+                                  color: const Color(0xFF84CC16),
+                                  strokeWidth: 2,
+                                  strokeColor: Colors.white,
+                                );
+                              },
+                            ),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: const Color(
+                                0xFF84CC16,
+                              ).withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 150,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: interval,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(color: Colors.grey.shade800, strokeWidth: 1);
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: interval,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '${value.toInt()}',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 10,
-                          ),
-                        );
-                      },
-                      reservedSize: 30,
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        final int minuteIndex = value.toInt();
-                        if (minuteIndex < 0 || minuteIndex > maxX) {
-                          return const SizedBox.shrink();
-                        }
-
-                        if (minuteIndex != maxX && minuteIndex % 3 != 0) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final String label = minuteIndex == maxX
-                            ? 'Now'
-                            : '-${maxX - minuteIndex}m';
-
-                        return Text(
-                          label,
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 10,
-                          ),
-                        );
-                      },
-                      reservedSize: 30,
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: maxX.toDouble(),
-                minY: 0,
-                maxY: maxY,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: const Color(0xFF84CC16),
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, barData, index) {
-                        return FlDotCirclePainter(
-                          radius: 4,
-                          color: const Color(0xFF84CC16),
-                          strokeWidth: 2,
-                          strokeColor: Colors.white,
-                        );
-                      },
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: const Color(0xFF84CC16).withValues(alpha: 0.1),
-                    ),
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/course_service.dart';
+import 'completed_courses_page.dart';
 import 'quiz_page.dart';
 
 class ModuleListPage extends StatelessWidget {
@@ -288,24 +289,32 @@ class ModuleListPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () async {
-                            try {
-                              await courseService.completeCourse(courseId);
+                          onPressed: () {
+                            final messenger = ScaffoldMessenger.of(context);
 
-                              if (!context.mounted) return;
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CompletedCoursesPage(),
+                              ),
+                            );
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Cours marque comme termine'),
-                                ),
-                              );
-                            } catch (e) {
-                              if (!context.mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Erreur : $e')),
-                              );
-                            }
+                            courseService
+                                .completeCourse(courseId)
+                                .then((_) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Cours marque comme termine',
+                                      ),
+                                    ),
+                                  );
+                                })
+                                .catchError((e) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Erreur : $e')),
+                                  );
+                                });
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.blue),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
 import 'login_page.dart';
 import '../learner/learner_dashboard_page.dart';
+import '../profile/profile_page.dart';
 import '../trainer/trainer_dashboard_page.dart';
 
 class AppRouter extends StatelessWidget {
@@ -51,6 +52,9 @@ class AppRouter extends StatelessWidget {
             }
 
             if (appUser.role == 'Formateur') {
+              if (appUser.expertises.isEmpty) {
+                return const ProfilePage(forceExpertiseSetup: true);
+              }
               return const TrainerDashboardPage();
             }
 

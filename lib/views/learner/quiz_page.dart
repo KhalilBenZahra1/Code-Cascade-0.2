@@ -85,48 +85,38 @@ class _QuizPageState extends State<QuizPage> {
                   onPressed: isLoading
                       ? null
                       : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+
                           setDialogState(() {
                             isLoading = true;
                           });
 
-                          try {
-                            await _courseService.completeCourse(
-                              widget.courseId,
-                              score: score,
-                            );
-
-                            if (!dialogContext.mounted) return;
+                          if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
-
-                            if (!mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Cours marqué comme terminé'),
-                              ),
-                            );
-
-                            // Naviguer vers la page Cours terminés
-                            if (!mounted) return;
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const CompletedCoursesPage(),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!dialogContext.mounted) return;
-
-                            setDialogState(() {
-                              isLoading = false;
-                            });
-
-                            if (!mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Erreur : $e')),
-                            );
                           }
+
+                          if (!mounted) return;
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CompletedCoursesPage(),
+                            ),
+                          );
+
+                          _courseService
+                              .completeCourse(widget.courseId, score: score)
+                              .then((_) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cours marqué comme terminé'),
+                                  ),
+                                );
+                              })
+                              .catchError((e) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Erreur : $e')),
+                                );
+                              });
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF84CC16),

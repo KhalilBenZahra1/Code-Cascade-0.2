@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,9 +11,11 @@ class CourseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static const String _usersCollection = 'users';
+  static const String _activityEventsCollection = 'activityEvents';
+
   // ==================== MÉTHODES EXISTANTES ====================
 
-  /// Récupère les cours du formateur en temps réel (Stream)
   Stream<QuerySnapshot<Map<String, dynamic>>> getTrainerCourses() {
     final user = _auth.currentUser;
 
@@ -27,7 +30,6 @@ class CourseService {
         .snapshots();
   }
 
-  /// Compte le nombre de cours du formateur (Stream)
   Stream<int> getTrainerCoursesCount() {
     final user = _auth.currentUser;
 
@@ -42,7 +44,6 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  /// Crée un NOUVEAU cours (avec upload de fichiers)
   Future<void> createCourse({
     required String title,
     required String category,
@@ -61,13 +62,11 @@ class CourseService {
       throw Exception("Le quiz ne peut pas dépasser 5 questions.");
     }
 
-    // Génère un nouvel ID de cours
     final courseRef = _firestore.collection('courses').doc();
     final String courseId = courseRef.id;
 
     final List<Map<String, dynamic>> uploadedFiles = [];
 
-    // Upload des fichiers
     for (final file in files) {
       final String? path = file['path'];
 
@@ -132,7 +131,6 @@ class CourseService {
       };
     }).toList();
 
-    // Crée le document avec set()
     await courseRef.set({
       'title': title.trim(),
       'category': category.trim(),
@@ -144,24 +142,13 @@ class CourseService {
       'updatedAt': FieldValue.serverTimestamp(),
       'files': uploadedFiles,
       'quiz': sanitizedQuiz,
-
-      // Learners qui ont ajouté le cours à leur liste "Cours suivis"
       'enrolledLearnerIds': <String>[],
-
-      // Learners qui ont commencé le cours
       'inProgressLearnerIds': <String>[],
-
-      // Learners qui ont terminé le cours
       'completedLearnerIds': <String>[],
-
-      // Learners qui ont deja termine ce cours au moins une fois
       'everCompletedLearnerIds': <String>[],
     });
   }
 
-  // ==================== NOUVELLE MÉTHODE ====================
-
-  /// Met à jour un cours EXISTANT (avec gestion des fichiers existants/nouveaux)
   Future<void> updateCourse({
     required String courseId,
     required String title,
@@ -181,7 +168,6 @@ class CourseService {
       throw Exception("Le quiz ne peut pas dépasser 5 questions.");
     }
 
-    // Référence au document existant (pas de nouvel ID ici !)
     final courseRef = _firestore.collection('courses').doc(courseId);
 
     final List<Map<String, dynamic>> updatedFiles = [];
@@ -190,7 +176,6 @@ class CourseService {
       final String? existingUrl = file['url'];
       final String? path = file['path'];
 
-      // Fichier déjà existant dans Storage (pas besoin de re-uploader)
       if (existingUrl != null &&
           existingUrl.isNotEmpty &&
           (path == null || path.isEmpty)) {
@@ -203,7 +188,6 @@ class CourseService {
         continue;
       }
 
-      // Nouveau fichier local à uploader
       if (path == null || path.isEmpty) {
         continue;
       }
@@ -248,7 +232,6 @@ class CourseService {
       };
     }).toList();
 
-    // Met à jour avec update() (pas set() !)
     await courseRef.update({
       'title': title.trim(),
       'category': category.trim(),
@@ -272,7 +255,6 @@ class CourseService {
 
   // ==================== MÉTHODES LEARNER ====================
 
-  /// Récupère tous les cours publiés par les formateurs
   Stream<QuerySnapshot<Map<String, dynamic>>> getPublishedCourses() {
     return _firestore
         .collection('courses')
@@ -280,15 +262,12 @@ class CourseService {
         .snapshots();
   }
 
-  /// Récupère un seul cours par son ID
   Stream<DocumentSnapshot<Map<String, dynamic>>> getCourseById(
     String courseId,
   ) {
     return _firestore.collection('courses').doc(courseId).snapshots();
   }
 
-  /// Récupère les cours suivis par l'apprenant connecté
-  /// Ici : cours ajoutés mais pas encore commencés
   Stream<QuerySnapshot<Map<String, dynamic>>> getEnrolledCourses() {
     final user = _auth.currentUser;
 
@@ -303,7 +282,6 @@ class CourseService {
         .snapshots();
   }
 
-  /// Récupère les cours en progression pour l'apprenant connecté
   Stream<QuerySnapshot<Map<String, dynamic>>> getInProgressCourses() {
     final user = _auth.currentUser;
 
@@ -318,7 +296,6 @@ class CourseService {
         .snapshots();
   }
 
-  /// Récupère les cours terminés pour l'apprenant connecté
   Stream<QuerySnapshot<Map<String, dynamic>>> getCompletedCourses() {
     final user = _auth.currentUser;
 
@@ -333,7 +310,6 @@ class CourseService {
         .snapshots();
   }
 
-  /// Compte le nombre de cours suivis par l'apprenant connecté
   Stream<int> getEnrolledCoursesCount() {
     final user = _auth.currentUser;
 
@@ -348,7 +324,6 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  /// Compte le nombre de cours en progression
   Stream<int> getInProgressCoursesCount() {
     final user = _auth.currentUser;
 
@@ -363,7 +338,6 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  /// Compte le nombre de cours terminés
   Stream<int> getCompletedCoursesCount() {
     final user = _auth.currentUser;
 
@@ -378,42 +352,47 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  /// KPI learner: nombre de cours termines (visible en termines OU deja termines une fois)
-  Stream<int> getCompletedKpiCount() {
+  /// Total historique des événements "cours terminé" pour le learner connecté.
+  /// Ici on compte les événements, pas les cours.
+  Stream<int> getCompletedActivityTotalCount() {
     final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception("Utilisateur non connecté.");
     }
 
-    return _firestore.collection('courses').snapshots().map((snapshot) {
-      int count = 0;
-
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final List completed = List.from(data['completedLearnerIds'] ?? []);
-        final List everCompleted = List.from(
-          data['everCompletedLearnerIds'] ?? [],
-        );
-        final Map<String, dynamic> scores = Map<String, dynamic>.from(
-          data['learnerScores'] ?? {},
-        );
-
-        final bool isVisibleInCompleted = completed.contains(user.uid);
-        final bool hasEverCompletedFlag = everCompleted.contains(user.uid);
-        final bool hasLearnerScore = scores[user.uid] != null;
-
-        if (isVisibleInCompleted || hasEverCompletedFlag || hasLearnerScore) {
-          count++;
-        }
-      }
-
-      return count;
-    });
+    return _firestore
+        .collection(_usersCollection)
+        .doc(user.uid)
+        .collection(_activityEventsCollection)
+        .where('type', isEqualTo: 'course_completed')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
   }
 
-  /// Ajoute le learner à la liste "Cours suivis"
-  /// arrayUnion évite les doublons automatiquement
+  /// Récupère les événements "course_completed" des X dernières minutes.
+  Stream<QuerySnapshot<Map<String, dynamic>>> getRecentCompletedActivityEvents({
+    int windowMinutes = 15,
+  }) {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    final DateTime now = DateTime.now();
+    final DateTime start = now.subtract(Duration(minutes: windowMinutes));
+
+    return _firestore
+        .collection(_usersCollection)
+        .doc(user.uid)
+        .collection(_activityEventsCollection)
+        .where('type', isEqualTo: 'course_completed')
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .orderBy('createdAt', descending: false)
+        .snapshots();
+  }
+
   Future<void> enrollInCourse(String courseId) async {
     final user = _auth.currentUser;
 
@@ -427,8 +406,6 @@ class CourseService {
     });
   }
 
-  /// Quand le learner clique sur "Commencer"
-  /// Le cours quitte "Cours suivis" et va dans "Progression"
   Future<void> startCourse(String courseId) async {
     final user = _auth.currentUser;
 
@@ -454,7 +431,6 @@ class CourseService {
         );
   }
 
-  /// Supprime rapidement un cours de la liste "Cours suivis"
   Future<void> removeFromEnrolled(String courseId) async {
     final user = _auth.currentUser;
 
@@ -479,8 +455,6 @@ class CourseService {
         );
   }
 
-  /// Quand le learner termine le cours
-  /// Le cours quitte "Progression" et va dans "Terminés"
   Future<void> completeCourse(String courseId, {int? score}) async {
     final user = _auth.currentUser;
 
@@ -495,18 +469,55 @@ class CourseService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    // Sauvegarder le score si fourni (format map par userId)
     if (score != null) {
       updateData['learnerScores.${user.uid}.score'] = score;
       updateData['learnerScores.${user.uid}.completedAt'] =
           FieldValue.serverTimestamp();
     }
 
-    await _firestore.collection('courses').doc(courseId).update(updateData);
+    await _firestore
+        .collection('courses')
+        .doc(courseId)
+        .update(updateData)
+        .timeout(
+          const Duration(seconds: 12),
+          onTimeout: () {
+            throw Exception(
+              "Le serveur met trop de temps à répondre. Vérifiez votre connexion puis réessayez.",
+            );
+          },
+        );
+
+    unawaited(
+      _logCourseCompletedActivityEvent(courseId: courseId, score: score),
+    );
   }
 
-  /// Quand le learner veut revoir un cours terminé
-  /// Le cours quitte "Terminés" et retourne dans "Cours suivis"
+  Future<void> _logCourseCompletedActivityEvent({
+    required String courseId,
+    int? score,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final activityRef = _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .collection(_activityEventsCollection)
+          .doc();
+
+      await activityRef.set({
+        'type': 'course_completed',
+        'courseId': courseId,
+        'score': score,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Ne bloque jamais l'UX learner si le log d'activite echoue.
+    }
+  }
+
   Future<void> restartCourse(String courseId) async {
     final user = _auth.currentUser;
 
@@ -521,7 +532,6 @@ class CourseService {
     });
   }
 
-  /// Vérifie si le learner existe déjà dans au moins une des listes du cours
   bool isLearnerLinkedToCourse(Map<String, dynamic> courseData, String userId) {
     final List enrolled = List.from(courseData['enrolledLearnerIds'] ?? []);
     final List inProgress = List.from(courseData['inProgressLearnerIds'] ?? []);
@@ -532,19 +542,16 @@ class CourseService {
         completed.contains(userId);
   }
 
-  /// Vérifie si le learner suit déjà ce cours
   bool isCourseEnrolled(Map<String, dynamic> courseData, String userId) {
     final List enrolled = List.from(courseData['enrolledLearnerIds'] ?? []);
     return enrolled.contains(userId);
   }
 
-  /// Vérifie si le learner est déjà en progression sur ce cours
   bool isCourseInProgress(Map<String, dynamic> courseData, String userId) {
     final List inProgress = List.from(courseData['inProgressLearnerIds'] ?? []);
     return inProgress.contains(userId);
   }
 
-  /// Vérifie si le learner a déjà terminé ce cours
   bool isCourseCompleted(Map<String, dynamic> courseData, String userId) {
     final List completed = List.from(courseData['completedLearnerIds'] ?? []);
     return completed.contains(userId);

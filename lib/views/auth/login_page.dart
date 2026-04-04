@@ -16,6 +16,10 @@ class _LoginPageState extends State<LoginPage> {
   bool _isPasswordVisible = false;
   final AuthService _authService = AuthService();
 
+  void _navigateAfterAuth(dynamic result) {
+    Navigator.pushNamedAndRemoveUntil(context, '/app-router', (route) => false);
+  }
+
   Future<void> _handleEmailLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -32,8 +36,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (!mounted) return;
-
-      Navigator.pushReplacementNamed(context, result.targetRoute);
+      _navigateAfterAuth(result);
     } catch (e) {
       if (!mounted) return;
 
@@ -71,11 +74,9 @@ class _LoginPageState extends State<LoginPage> {
         selectedRole: selectedRole,
       );
       if (!mounted) return;
-
-      Navigator.pushReplacementNamed(context, result.targetRoute);
+      _navigateAfterAuth(result);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),

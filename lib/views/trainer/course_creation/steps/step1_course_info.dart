@@ -4,11 +4,13 @@ import 'package:file_picker/file_picker.dart';
 class Step1CourseInfo extends StatefulWidget {
   final Map<String, dynamic> data;
   final Function(String, dynamic) onUpdate;
+  final List<String> categories;
 
   const Step1CourseInfo({
     super.key,
     required this.data,
     required this.onUpdate,
+    required this.categories,
   });
 
   @override
@@ -18,18 +20,22 @@ class Step1CourseInfo extends StatefulWidget {
 class _Step1CourseInfoState extends State<Step1CourseInfo> {
   final _formKey = GlobalKey<FormState>();
 
-  final List<String> _categories = [
-    'Développement Web',
-    'Mobile',
-    'Data Science',
-    'DevOps',
-    'Design',
-    'Marketing',
-    'Cloud Computing',
-    'Cybersécurité',
-  ];
-
   final List<String> _levels = ['Débutant', 'Intermédiaire', 'Avancé'];
+
+  List<String> _resolvedCategories() {
+    final categories = widget.categories
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+
+    final selectedCategory = (widget.data['category'] as String?)?.trim() ?? '';
+    if (selectedCategory.isNotEmpty && !categories.contains(selectedCategory)) {
+      categories.add(selectedCategory);
+    }
+
+    return categories;
+  }
 
   Future<void> _pickFiles() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -115,6 +121,8 @@ class _Step1CourseInfoState extends State<Step1CourseInfo> {
 
   @override
   Widget build(BuildContext context) {
+    final availableCategories = _resolvedCategories();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -139,17 +147,29 @@ class _Step1CourseInfoState extends State<Step1CourseInfo> {
             _buildLabel('Catégorie', true),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: widget.data['category'].isEmpty
-                  ? null
-                  : widget.data['category'],
+              initialValue:
+                  availableCategories.contains(widget.data['category'])
+                  ? widget.data['category']
+                  : null,
               dropdownColor: const Color(0xFF1E293B),
               style: const TextStyle(color: Colors.white),
-              decoration: _inputDecoration('Sélectionnez une catégorie'),
-              items: _categories
+              decoration: _inputDecoration(
+                availableCategories.isEmpty
+                    ? 'Aucun domaine d\'expertise disponible'
+                    : 'Sélectionnez une catégorie',
+              ),
+              items: availableCategories
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                   .toList(),
-              onChanged: (v) => widget.onUpdate('category', v),
-              validator: (v) => v == null ? 'Sélectionnez une catégorie' : null,
+              onChanged: availableCategories.isEmpty
+                  ? null
+                  : (v) => widget.onUpdate('category', v),
+              validator: (v) {
+                if (availableCategories.isEmpty) {
+                  return 'Ajoutez un domaine d\'expertise dans votre profil';
+                }
+                return v == null ? 'Sélectionnez une catégorie' : null;
+              },
             ),
 
             const SizedBox(height: 20),
