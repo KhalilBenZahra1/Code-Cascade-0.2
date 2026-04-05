@@ -44,15 +44,6 @@ class _SignupPageState extends State<SignupPage> {
     return _selectedExpertises.contains('Autre');
   }
 
-  bool _hasValidTrainerExpertiseSelection() {
-    final hasStandardExpertise = _selectedExpertises.any((e) => e != 'Autre');
-    final hasCustomExpertise =
-        _isOtherExpertiseSelected() &&
-        _otherExpertiseController.text.trim().isNotEmpty;
-
-    return hasStandardExpertise || hasCustomExpertise;
-  }
-
   List<String> _expertisesForSubmit() {
     final expertises = _selectedExpertises
         .where((e) => e != 'Autre')
@@ -60,16 +51,12 @@ class _SignupPageState extends State<SignupPage> {
         .where((e) => e.isNotEmpty)
         .toSet();
 
-    final customExpertise = _otherExpertiseController.text.trim();
-    if (_isOtherExpertiseSelected() && customExpertise.isNotEmpty) {
-      expertises.add(customExpertise);
+    final otherValue = _otherExpertiseController.text.trim();
+    if (_isOtherExpertiseSelected() && otherValue.isNotEmpty) {
+      expertises.add(otherValue);
     }
 
     return expertises.toList();
-  }
-
-  void _navigateAfterAuth(dynamic result) {
-    Navigator.pushNamedAndRemoveUntil(context, '/app-router', (route) => false);
   }
 
   @override
@@ -221,6 +208,7 @@ class _SignupPageState extends State<SignupPage> {
                   },
                   onSaved: (value) => _email = value,
                 ),
+
                 if (_selectedRole == 'Formateur') ...[
                   const SizedBox(height: 16),
                   Row(
@@ -300,7 +288,8 @@ class _SignupPageState extends State<SignupPage> {
                                   _otherExpertiseController.clear();
                                 }
                               }
-                              if (_hasValidTrainerExpertiseSelection()) {
+
+                              if (_selectedExpertises.isNotEmpty) {
                                 _showExpertiseError = false;
                               }
                             });
@@ -336,7 +325,7 @@ class _SignupPageState extends State<SignupPage> {
                       controller: _otherExpertiseController,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: 'Précisez votre domaine',
+                        hintText: 'Autre domaine (optionnel)',
                         hintStyle: TextStyle(color: Colors.grey.shade500),
                         prefixIcon: const Icon(
                           Icons.edit_outlined,
@@ -359,17 +348,10 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                         ),
                       ),
-                      onChanged: (_) {
-                        if (_showExpertiseError &&
-                            _hasValidTrainerExpertiseSelection()) {
-                          setState(() {
-                            _showExpertiseError = false;
-                          });
-                        }
-                      },
                     ),
                   ],
-                  if (_showExpertiseError)
+
+                  if (_showExpertiseError && _selectedExpertises.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8, left: 4),
                       child: Text(
@@ -444,12 +426,10 @@ class _SignupPageState extends State<SignupPage> {
                   child: ElevatedButton(
                     onPressed: (_acceptTerms && !_isLoading)
                         ? () async {
-                            final validTrainerExpertise =
-                                _selectedRole != 'Formateur' ||
-                                _hasValidTrainerExpertiseSelection();
-
                             setState(() {
-                              _showExpertiseError = !validTrainerExpertise;
+                              _showExpertiseError =
+                                  _selectedRole == 'Formateur' &&
+                                  _selectedExpertises.isEmpty;
                             });
 
                             if (!_formKey.currentState!.validate() ||
@@ -487,7 +467,10 @@ class _SignupPageState extends State<SignupPage> {
                               );
 
                               if (!context.mounted) return;
-                              _navigateAfterAuth(result);
+                              Navigator.pushReplacementNamed(
+                                context,
+                                result.targetRoute,
+                              );
                             } on FirebaseAuthException catch (e) {
                               if (!context.mounted) return;
 
@@ -624,7 +607,7 @@ class _SignupPageState extends State<SignupPage> {
       );
       if (!mounted) return;
 
-      _navigateAfterAuth(result);
+      Navigator.pushReplacementNamed(context, result.targetRoute);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

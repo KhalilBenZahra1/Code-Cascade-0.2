@@ -44,6 +44,35 @@ class CourseService {
         .map((snapshot) => snapshot.docs.length);
   }
 
+  Stream<int> getTrainerLearnersCount() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('trainerId', isEqualTo: user.uid)
+        .snapshots()
+        .map((snapshot) {
+          int totalLearners = 0;
+
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final courseLearners = <String>{
+              ...List<String>.from(data['enrolledLearnerIds'] ?? []),
+              ...List<String>.from(data['inProgressLearnerIds'] ?? []),
+              ...List<String>.from(data['completedLearnerIds'] ?? []),
+            };
+
+            totalLearners += courseLearners.length;
+          }
+
+          return totalLearners;
+        });
+  }
+
   Future<void> createCourse({
     required String title,
     required String category,

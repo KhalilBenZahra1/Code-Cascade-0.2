@@ -116,12 +116,31 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
 
   Widget _buildStatsCards() {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildStatCard(
-          icon: Icons.people_outline,
-          iconColor: Colors.blue,
-          value: '128',
-          label: 'Apprenants',
+        Expanded(
+          child: StreamBuilder<int>(
+            stream: CourseService().getTrainerLearnersCount(),
+            builder: (context, snapshot) {
+              final int learnersCount = snapshot.data ?? 0;
+
+              return _buildStatCard(
+                icon: Icons.people_outline,
+                iconColor: Colors.blue,
+                value: learnersCount.toString(),
+                label: 'Apprenants',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const CoursesListPage(showLearnersOnCourseTap: true),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -146,14 +165,6 @@ class _TrainerDashboardPageState extends State<TrainerDashboardPage> {
               );
             },
           ),
-        ),
-
-        const SizedBox(width: 12),
-        _buildStatCard(
-          icon: Icons.how_to_reg_outlined,
-          iconColor: Colors.orange,
-          value: '156',
-          label: 'Inscriptions',
         ),
       ],
     );
