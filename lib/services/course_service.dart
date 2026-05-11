@@ -585,4 +585,34 @@ class CourseService {
     final List completed = List.from(courseData['completedLearnerIds'] ?? []);
     return completed.contains(userId);
   }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getTrainerPopularCourses() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    return _firestore
+        .collection('courses')
+        .where('trainerId', isEqualTo: user.uid)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getTrainerCoursesCreatedLast30Days() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception("Utilisateur non connecté.");
+    }
+
+    final DateTime startDate = DateTime.now().subtract(const Duration(days: 30));
+
+    return _firestore
+        .collection('courses')
+        .where('trainerId', isEqualTo: user.uid)
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+        .orderBy('createdAt', descending: false)
+        .snapshots();
+  }
 }

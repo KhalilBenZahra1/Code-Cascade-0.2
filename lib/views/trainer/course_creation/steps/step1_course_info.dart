@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
+
 class Step1CourseInfo extends StatefulWidget {
   final Map<String, dynamic> data;
   final Function(String, dynamic) onUpdate;
